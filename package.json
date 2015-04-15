@@ -1,0 +1,25 @@
+{
+  "name": "utp-native",
+  "version": "0.0.0",
+  "description": "Native bindings for libutp",
+  "main": "index.js",
+  "gypfile": true,
+  "scripts": {
+    "install": "cd deps/libutp && make && cd ../.. && node-gyp rebuild",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "bindings": "^1.2.1",
+    "nan": "^1.7.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mafintosh/utp-native.git"
+  },
+  "author": "Mathias Buus (@mafintosh)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mafintosh/utp-native/issues"
+  },
+  "homepage": "https://github.com/mafintosh/utp-native"
+}
