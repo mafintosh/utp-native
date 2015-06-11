@@ -35,6 +35,7 @@ class UTPSocket : public node::ObjectWrap {
     NanCallback *on_destroying;
     NanCallback *on_socket;
     NanCallback *on_drain;
+    NanCallback *on_error;
 
     utp_write_buffer_t write_buffer_;
 
