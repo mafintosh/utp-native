@@ -5,14 +5,17 @@
   "main": "index.js",
   "gypfile": true,
   "scripts": {
-    "install": "cd deps/libutp && make && cd ../.. && node-gyp rebuild"
+    "install": "cd deps/libutp && make && cd ../.. && node-gyp rebuild",
+    "test": "standard"
   },
   "dependencies": {
     "bindings": "^1.2.1",
     "nan": "^2.2.0",
     "readable-stream": "^2.0.5"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "standard": "^5.4.1"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/mafintosh/utp-native.git"
