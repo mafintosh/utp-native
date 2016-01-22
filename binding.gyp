@@ -3,8 +3,7 @@
     {
       'target_name': 'utp',
       'sources': [
-        'src/utp.cc',
-        'src/socket.cc',
+        'binding.cc',
       ],
       "libraries": [
         "<!(node -e \"process.stdout.write(require('fs').realpathSync('deps/libutp/libutp.a'))\")",

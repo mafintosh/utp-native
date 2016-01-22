@@ -1,14 +1,17 @@
 var utp = require('./')
 
-if (process.argv[2] === 'listen') {
-  var server = utp.createServer()
+var server = utp.createServer(function (socket) {
+  console.log('Server received socket')
+  socket.pipe(socket)
+})
 
-  server.on('connection', function (socket) {
-    process.stdout.pipe(socket).pipe(process.stdout)
+server.listen(9000, function () {
+  console.log('Server is listening on port %d', server.address().port)
+
+  var socket = utp.connect(9000)
+
+  socket.write('hello world')
+  socket.on('data', function (data) {
+    console.log('echo:', data.toString())
   })
-
-  server.listen(process.argv[3] || 10000)
-} else {
-  var socket = utp.connect(process.argv[3] || 10000, process.argv[4])
-  process.stdin.pipe(socket).pipe(process.stdout)
-}
+})

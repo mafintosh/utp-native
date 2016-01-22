@@ -62,6 +62,11 @@
 // that hasn't been acked yet
 #define DUPLICATE_ACKS_BEFORE_RESEND 3
 
+// Allow a reception window of at least 3 ack_nrs behind seq_nr
+// A non-SYN packet with an ack_nr difference greater than this is
+// considered suspicious and ignored
+#define ACK_NR_ALLOWED_WINDOW DUPLICATE_ACKS_BEFORE_RESEND
+
 #define RST_INFO_TIMEOUT 10000
 #define RST_INFO_LIMIT 1000
 // 29 seconds determined from measuring many home NAT devices
@@ -156,6 +161,7 @@ enum CONN_STATE {
 	CS_UNINITIALIZED = 0,
 	CS_IDLE,
 	CS_SYN_SENT,
+	CS_SYN_RECV,
 	CS_CONNECTED,
 	CS_CONNECTED_FULL,
 	CS_GOT_FIN,
@@ -166,7 +172,7 @@ enum CONN_STATE {
 };
 
 static const cstr statenames[] = {
-	"UNINITIALIZED", "IDLE","SYN_SENT","CONNECTED","CONNECTED_FULL","GOT_FIN","DESTROY_DELAY","FIN_SENT","RESET","DESTROY"
+	"UNINITIALIZED", "IDLE","SYN_SENT", "SYN_RECV", "CONNECTED","CONNECTED_FULL","GOT_FIN","DESTROY_DELAY","FIN_SENT","RESET","DESTROY"
 };
 
 struct OutgoingPacket {
@@ -184,7 +190,7 @@ struct SizableCircularBuffer {
 	// This is the elements that the circular buffer points to
 	void **elements;
 
-	void *get(size_t i) { assert(elements); return elements ? elements[i & mask] : NULL; }
+	void *get(size_t i) const { assert(elements); return elements ? elements[i & mask] : NULL; }
 	void put(size_t i, void *data) { assert(elements); elements[i&mask] = data; }
 
 	void grow(size_t item, size_t index);
@@ -552,7 +558,7 @@ struct UTPSocket {
 		va_end(va);
 		buf[4095] = '\0';
 
-		snprintf(buf2, 4096, "%p %s %06d %s", this, addrfmt(addr, addrbuf), conn_id_recv, buf);
+		snprintf(buf2, 4096, "%p %s %06u %s", this, addrfmt(addr, addrbuf), conn_id_recv, buf);
 		buf2[4095] = '\0';
 
 		ctx->log(level, this, buf2);
@@ -1113,6 +1119,7 @@ void UTPSocket::check_timeouts()
 
 	switch (state) {
 	case CS_SYN_SENT:
+	case CS_SYN_RECV:
 	case CS_CONNECTED_FULL:
 	case CS_CONNECTED:
 	case CS_FIN_SENT: {
@@ -1156,6 +1163,16 @@ void UTPSocket::check_timeouts()
 			// Increase RTO
 			const uint new_timeout = ignore_loss ? retransmit_timeout : retransmit_timeout * 2;
 
+			// They initiated the connection but failed to respond before the rto. 
+			// A malicious client can also spoof the destination address of a ST_SYN bringing us to this state.
+			// Kill the connection and do not notify the upper layer
+			if (state == CS_SYN_RECV) {
+				state = CS_DESTROY;
+				utp_call_on_error(ctx, this, UTP_ETIMEDOUT);
+				return;
+			}
+
+			// We initiated the connection but the other side failed to respond before the rto
 			if (retransmit_count >= 4 || (state == CS_SYN_SENT && retransmit_count >= 2)) {
 				// 4 consecutive transmissions have timed out. Kill it. If we
 				// haven't even connected yet, give up after only 2 consecutive
@@ -1236,7 +1253,7 @@ void UTPSocket::check_timeouts()
 			utp_call_on_state_change(this->ctx, this, UTP_STATE_WRITABLE);
 		}
 
-		if (state >= CS_CONNECTED && state <= CS_FIN_SENT) {
+		if (state >= CS_CONNECTED && state < CS_GOT_FIN) {
 			if ((int)(ctx->current_ms - last_sent_packet) >= KEEPALIVE_INTERVAL) {
 				send_keep_alive();
 			}
@@ -1766,6 +1783,25 @@ size_t utp_process_incoming(UTPSocket *conn, const byte *packet, size_t len, boo
 	// mark receipt time
 	uint64 time = utp_call_get_microseconds(conn->ctx, conn);
 
+	// window packets size is used to calculate a minimum
+	// permissible range for received acks. connections with acks falling
+	// out of this range are dropped
+	const uint16 curr_window = max<uint16>(conn->cur_window_packets + ACK_NR_ALLOWED_WINDOW, ACK_NR_ALLOWED_WINDOW);
+
+	// ignore packets whose ack_nr is invalid. This would imply a spoofed address
+	// or a malicious attempt to attach the uTP implementation.
+	// acking a packet that hasn't been sent yet!
+	// SYN packets have an exception, since there are no previous packets
+	if ((pk_flags != ST_SYN || conn->state != CS_SYN_RECV) && 
+		(wrapping_compare_less(conn->seq_nr - 1, pk_ack_nr, ACK_NR_MASK)
+		|| wrapping_compare_less(pk_ack_nr, conn->seq_nr - 1 - curr_window, ACK_NR_MASK))) {
+#if UTP_DEBUG_LOGGING
+	conn->log(UTP_LOG_DEBUG, "Invalid ack_nr: %u. our seq_nr: %u last unacked: %u"
+	, pk_ack_nr, conn->seq_nr, (conn->seq_nr - conn->cur_window_packets) & ACK_NR_MASK);
+#endif
+		return 0;
+	}
+
 	// RSTs are handled earlier, since the connid matches the send id not the recv id
 	assert(pk_flags != ST_RESET);
 
@@ -1968,7 +2004,6 @@ size_t utp_process_incoming(UTPSocket *conn, const byte *packet, size_t len, boo
 	// hasn't received a sample from us yet, and doesn't
 	// know what it is. We can't update out history unless
 	// we have a true measured sample
-	prev_delay_base = conn->our_hist.delay_base;
 	if (actual_delay != 0) {
 		conn->our_hist.add_sample(actual_delay, conn->ctx->current_ms);
 
@@ -2101,9 +2136,18 @@ size_t utp_process_incoming(UTPSocket *conn, const byte *packet, size_t len, boo
 
 		// Respond to connect message
 		// Switch to CONNECTED state.
-		if (conn->state == CS_SYN_SENT) {
-			conn->state = CS_CONNECTED;
+		// If this is an ack and we're in still handshaking
+		// transition over to the connected state.
 
+		// Incoming connection completion
+		if (pk_flags == ST_DATA && conn->state == CS_SYN_RECV) {
+			conn->state = CS_CONNECTED;
+		}
+
+		// Outgoing connection completion
+		if (pk_flags == ST_STATE && conn->state == CS_SYN_SENT)	{
+			conn->state = CS_CONNECTED;
+		
 			// If the user has defined the ON_CONNECT callback, use that to
 			// notify the user that the socket is now connected.  If ON_CONNECT
 			// has not been defined, notify the user via ON_STATE_CHANGE.
@@ -2925,7 +2969,7 @@ int utp_process_udp(utp_context *ctx, const byte *buffer, size_t len, const stru
 		conn->ack_nr = seq_nr;
 		conn->seq_nr = utp_call_get_random(ctx, NULL);
 		conn->fast_resend_seq_nr = conn->seq_nr;
-		conn->state = CS_CONNECTED;
+		conn->state = CS_SYN_RECV;
 
 		const size_t read = utp_process_incoming(conn, buffer, len, true);
 
@@ -3312,7 +3356,8 @@ void utp_close(UTPSocket *conn)
 	case CS_GOT_FIN:
 		conn->state = CS_DESTROY_DELAY;
 		break;
-
+	case CS_SYN_RECV:
+		// fall through
 	default:
 		conn->state = CS_DESTROY;
 		break;
