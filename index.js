@@ -156,7 +156,9 @@ Server.prototype.close = function () {
 Server.prototype.listen = function (port, addr, onlistening) {
   if (typeof port === 'function') return this.listen(0, null, port)
   if (typeof addr === 'function') return this.listen(port, null, addr)
+  if (typeof port !== 'number') throw new Error('port must be a number')
   if (onlistening) this.on('listening', onlistening)
+
   var self = this
   this._create()
 

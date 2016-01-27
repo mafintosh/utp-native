@@ -6,7 +6,11 @@
   "gypfile": true,
   "scripts": {
     "install": "cd deps/libutp && make && cd ../.. && node-gyp rebuild",
-    "test": "standard"
+    "lint": "standard",
+    "coverage": "istanbul cover --print both -- _mocha tests/test-*.js",
+    "test": "mocha tests/test-*.js",
+    "test:interop-setup": "./tests/setup-interop-test.sh",
+    "test:interop": "mocha tests/interop-test-*.js"
   },
   "dependencies": {
     "bindings": "^1.2.1",
@@ -14,6 +18,10 @@
     "readable-stream": "^2.0.5"
   },
   "devDependencies": {
+    "chai": "^3.4.1",
+    "istanbul": "^0.4.2",
+    "mocha": "^2.4.4",
+    "pre-commit": "^1.1.2",
     "standard": "^5.4.1"
   },
   "repository": {
