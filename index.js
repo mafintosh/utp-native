@@ -1,196 +1,263 @@
+var events = require('events')
+var util = require('util')
+var stream = require('readable-stream')
 var bindings = require('bindings')
 var utp = bindings('utp')
-var events = require('events')
-var stream = require('readable-stream')
-var util = require('util')
 
-exports.Connection = Connection
-exports.connect = connect
+var UTP_ERRORS = [
+  'UTP_ECONNREFUSED',
+  'UTP_ECONNRESET',
+  'UTP_ETIMEDOUT'
+]
 
-function connect (port, host) {
-  var c = new Connection()
-  c.connect(port, host)
-  return c
+module.exports = UTP
+
+function UTP () {
+  if (!(this instanceof UTP)) return new UTP()
+  events.EventEmitter.call(this)
+  var self = this
+
+  this.connections = []
+
+  this._refs = 1
+  this._bound = false
+  this._firewalled = true
+  this._handle = utp.utp()
+  this._handle.onclose(onclose)
+  this._handle.onmessage(onmessage)
+  this._handle.onerror(onerror)
+
+  function onmessage (buf, rinfo) {
+    self.emit('message', buf, rinfo)
+  }
+
+  function onclose () {
+    self.emit('close')
+  }
+
+  function onerror () {
+    self.emit(new Error('Unknown UDP error'))
+  }
 }
 
-function Connection (handle) {
-  if (!(this instanceof Connection)) return Connection(handle)
+util.inherits(UTP, events.EventEmitter)
+
+UTP.createServer = function (onconnection) {
+  var server = UTP()
+  server.on('connection', onconnection)
+  return server
+}
+
+UTP.client = null // reuse a global client
+
+UTP.connect = function (port, host) {
+  if (UTP.client) return UTP.client.connect(port, host)
+
+  UTP.client = UTP()
+
+  var connection = UTP.client.connect(port, host)
+
+  UTP.client.close() // closes when no one is using it
+  UTP.client.on('close', onglobalclose)
+
+  return connection
+}
+
+function onglobalclose () {
+  UTP.client = null
+}
+
+UTP.prototype.address = function () {
+  return this._handle.address()
+}
+
+UTP.prototype.send = function (buf, offset, len, port, host, cb) {
+  if (typeof host === 'function') return this.send(buf, offset, len, port, null, host)
+  if (!Buffer.isBuffer(buf)) throw new Error('Buffer should be a buffer')
+  if (typeof offset !== 'number') throw new Error('Offset should be a number')
+  if (typeof len !== 'number') throw new Error('Length should be a number')
+  if (typeof port !== 'number') throw new Error('Port should be a number')
+  if (host && typeof host !== 'string') throw new Error('Host should be a string')
+
+  var wrote = this._handle.send(buf, offset, len, Number(port), host || '127.0.0.1')
+  process.nextTick(function () {
+    if (cb) cb(null, wrote)
+  })
+}
+
+UTP.prototype.connect = function (port, host) {
+  if (!this._bound) this.bind()
+
+  if (port && typeof port === 'object') return this.connect(port.port, port.host)
+  if (typeof port === 'string') port = Number(port)
+  if (host && typeof host !== 'string') throw new Error('Host should be a string')
+  if (!port) throw new Error('Port should be a number')
+
+  // TODO: support dns
+  var socket = this._handle.connect(port, host || '127.0.0.1')
+  return new Connection(this, socket)
+}
+
+UTP.prototype.bind = function (port, ip, onlistening) {
+  if (typeof port === 'function') return this.bind(0, null, port)
+  if (typeof ip === 'function') return this.bind(port, null, ip)
+  if (ip && typeof ip !== 'string') throw new Error('IP must be a string')
+
+  if (onlistening) this.once('listening', onlistening)
+
+  if (this._bound) throw new Error('Socket is already bound')
+
+  try {
+    this._handle.bind(Number(port) || 0, ip || '0.0.0.0')
+    this._bound = true
+  } catch (err) {
+    emit(this, 'error', err)
+    return
+  }
+
+  emit(this, 'listening')
+}
+
+UTP.prototype.listen = function (port, ip, onlistening) {
+  if (this._bound && port) throw new Error('Socket is already bound')
+  if (port) this.bind(port, ip, onlistening)
+  else this.bind()
+
+  if (!this._firewalled) return
+  this._firewalled = false
+
+  var self = this
+  this._handle.onsocket(function (socket) {
+    self.emit('connection', new Connection(self, socket))
+  })
+}
+
+UTP.prototype.ref = function () {
+  if (++this._refs === 1) this._handle.ref()
+}
+
+UTP.prototype.unref = function () {
+  if (--this._refs === 0) this._handle.unref()
+}
+
+UTP.prototype.close = function () {
+  this._handle.destroy()
+}
+
+function Connection (utp, socket) {
   stream.Duplex.call(this)
 
-  this._handle = handle || -1
-  this._port = 0
-  this._setupCallbacks()
-  this._ondrain = null
-  this._connecting = false
-  this._reading = false
+  var self = this
 
+  this._utp = utp
+  this._socket = socket
+  this._index = this._utp.connections.push(this) - 1
+  this._dataReq = null
+  this._batchReq = null
+  this._ondrain = null
+  this._ended = false
   this.destroyed = false
+
+  socket.ondrain(ondrain)
+  socket.ondata(ondata)
+  socket.onend(onend)
+  socket.onclose(onclose)
+  socket.onerror(onerror)
+  socket.onconnect(onconnect)
+
+  this.on('finish', this._finish)
+
+  function onconnect () {
+    self.emit('connect')
+  }
+
+  function onerror (error) {
+    self.destroy(new Error(UTP_ERRORS[error] || 'UTP_UNKNOWN_ERROR'))
+  }
+
+  function onclose () {
+    self._cleanup()
+    self.destroy()
+  }
+
+  function onend () {
+    self._finish()
+  }
+
+  function ondata (data) {
+    self.push(data)
+  }
+
+  function ondrain () {
+    var ondrain = self._ondrain
+    self._ondrain = null
+    self._batchReq = null
+    self._dataReq = null
+    if (ondrain) ondrain()
+  }
 }
 
 util.inherits(Connection, stream.Duplex)
 
-Connection.prototype.connect = function (port, host) {
-  this._create()
-  try {
-    this._port = utp.connect(this._handle, '' + port, host || '127.0.0.1', '' + 0, '0.0.0.0')
-    this._connecting = true
-  } catch (err) {
-    this._destroyNext(err)
-    return
-  }
+Connection.prototype.ref = function () {
+  this._utp.ref()
 }
 
-Connection.prototype._create = function () {
-  if (this._handle > -1) return
-  this._handle = utp.create()
-  this._setupCallbacks()
+Connection.prototype.unref = function () {
+  this._utp.unref()
 }
 
-Connection.prototype._setupCallbacks = function () {
-  if (this._handle === -1) return
-  var self = this
+Connection.prototype.address = function () {
+  return this._utp && this._utp.address()
+}
 
-  utp.callbacks(this._handle, {
-    onread: onread,
-    onconnect: onconnect,
-    oneof: oneof,
-    ondrain: ondrain
-  })
+Connection.prototype._write = function (data, enc, cb) {
+  if (this.destroyed) return cb()
+  if (this._socket.write(data)) return cb()
+  this._dataReq = data
+  this._ondrain = cb
+}
 
-  this.once('finish', this._end)
+Connection.prototype._writev = function (batch, cb) {
+  if (this.destroyed) return cb()
+  if (this._socket.writev(batch)) return cb()
+  this._batchReq = batch
+  this._ondrain = cb
+}
 
-  function ondrain () {
-    var cb = self._ondrain
-    self._ondrain = null
-    if (cb) cb()
-  }
-
-  function onread (buf) {
-    self.push(buf)
-  }
-
-  function oneof () {
-    self._eof()
-  }
-
-  function onconnect () {
-    self._connecting = false
-    self.emit('connect')
-  }
+Connection.prototype._finish = function () {
+  if (this._ended) return
+  this._ended = true
+  if (this._socket) this._socket.end()
+  this.push(null)
 }
 
 Connection.prototype.destroy = function (err) {
   if (this.destroyed) return
   this.destroyed = true
-
-  if (this._handle > -1) {
-    utp.destroy(this._handle)
-  }
-
   if (err) this.emit('error', err)
   this.emit('close')
-}
-
-Connection.prototype._end = function () {
-  if (this._connecting) return this.once('connect', this._end)
-  this.destroy()
-}
-
-Connection.prototype._destroyNext = function (err) {
-  var self = this
-  process.nextTick(function () {
-    self.destroy(err)
-  })
-}
-
-Connection.prototype._writev = function (batch, cb) {
-  if (this._handle === -1) return cb()
-
-  var buffers = new Array(batch.length)
-  for (var i = 0; i < buffers.length; i++) buffers[i] = batch[i].chunk
-
-  if (!utp.sendBulk(this._handle, buffers)) this._ondrain = cb
-  else cb()
-}
-
-Connection.prototype._eof = function () {
-  // TODO: can utp be half-open??
-  this._handle = -1
-  this.end()
-  this.push(null)
-}
-
-Connection.prototype._write = function (data, enc, cb) {
-  if (this._handle === -1) return cb()
-
-  if (!utp.send(this._handle, data)) this._ondrain = cb
-  else cb()
+  this._finish()
 }
 
 Connection.prototype._read = function () {
-  // TODO: readable preassure
+  // no readable backpressure atm
 }
 
-exports.Server
-exports.createServer = Server
-
-function Server (onconnection) {
-  if (!(this instanceof Server)) return new Server(onconnection)
-  events.EventEmitter.call(this)
-  if (onconnection) this.on('connection', onconnection)
-  this._handle = -1
-  this._port = 0
-}
-
-util.inherits(Server, events.EventEmitter)
-
-Server.prototype.address = function () {
-  if (!this._port) throw new Error('Server is not bound')
-  return {port: this._port, address: '0.0.0.0'} // TODO return actual address
-}
-
-Server.prototype.close = function () {
-  throw new Error('Not yet implemented')
-}
-
-Server.prototype.listen = function (port, addr, onlistening) {
-  if (typeof port === 'function') return this.listen(0, null, port)
-  if (typeof addr === 'function') return this.listen(port, null, addr)
-  if (onlistening) this.on('listening', onlistening)
-  var self = this
-  this._create()
-
-  try {
-    this._port = utp.listen(this._handle, '' + (port || 0), addr || '0.0.0.0')
-  } catch (err) {
-    return this._error(err)
+Connection.prototype._cleanup = function () {
+  var last = this._utp.connections.pop()
+  if (last !== this) {
+    this._utp.connections[this._index] = last
+    last._index = this._index
   }
-
-  process.nextTick(function () {
-    self.emit('listening')
-  })
+  this._utp = null
+  this._socket = null
+  this.emit('finalize')
 }
 
-Server.prototype._error = function (err) {
-  var self = this
-  utp.destroy(this._handle)
-  this._handle = -1
+function emit (self, name, arg) {
   process.nextTick(function () {
-    self.emit('error', err)
+    if (arg) self.emit(name, arg)
+    else self.emit(name)
   })
-}
-
-Server.prototype._create = function () {
-  if (this._handle > -1) throw new Error('Server is already listening')
-
-  var self = this
-
-  this._handle = utp.create()
-  utp.callbacks(this._handle, {
-    onsocket: onsocket
-  })
-
-  function onsocket (handle) {
-    self.emit('connection', new Connection(handle))
-  }
 }
