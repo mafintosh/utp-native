@@ -44,7 +44,7 @@ util.inherits(UTP, events.EventEmitter)
 
 UTP.createServer = function (onconnection) {
   var server = UTP()
-  server.on('connection', onconnection)
+  if (onconnection) server.on('connection', onconnection)
   return server
 }
 
@@ -52,18 +52,14 @@ UTP.client = null // reuse a global client
 
 UTP.connect = function (port, host) {
   if (UTP.client) return UTP.client.connect(port, host)
-
   UTP.client = UTP()
-
-  var connection = UTP.client.connect(port, host)
-
-  UTP.client.close() // closes when no one is using it
-  UTP.client.on('close', onglobalclose)
-
-  return connection
+  UTP.client.once('closeable', oncloseable)
+  return UTP.client.connect(port, host)
 }
 
-function onglobalclose () {
+function oncloseable () {
+  UTP.client.close()
+  UTP.client.on('error', noop)
   UTP.client = null
 }
 
@@ -250,6 +246,7 @@ Connection.prototype._cleanup = function () {
     this._utp.connections[this._index] = last
     last._index = this._index
   }
+  if (!this._utp.connections.length) this._utp.emit('closeable')
   this._utp = null
   this._socket = null
   this.emit('finalize')
@@ -261,3 +258,5 @@ function emit (self, name, arg) {
     else self.emit(name)
   })
 }
+
+function noop () {}
