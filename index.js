@@ -136,7 +136,11 @@ UTP.prototype.unref = function () {
   if (--this._refs === 0) this._handle.unref()
 }
 
-UTP.prototype.close = function () {
+UTP.prototype.close = function (cb) {
+  if (cb) {
+    this.once('close', cb)
+  }
+
   this._handle.destroy()
 }
 
