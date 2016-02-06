@@ -5,7 +5,6 @@
   "main": "index.js",
   "gypfile": true,
   "scripts": {
-    "install": "cd deps/libutp && make clean && make && cd ../.. && node-gyp rebuild",
     "test-timeouts": "tape test/timeouts.js",
     "test": "standard && tape test/socket-api.js test/net-api.js"
   },
