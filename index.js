@@ -75,6 +75,7 @@ UTP.prototype.send = function (buf, offset, len, port, host, cb) {
   if (typeof port !== 'number') throw new Error('Port should be a number')
   if (host && typeof host !== 'string') throw new Error('Host should be a string')
 
+  if (!this._bound) this.bind()
   var wrote = this._handle.send(buf, offset, len, Number(port), host || '127.0.0.1')
   process.nextTick(function () {
     if (cb) cb(null, wrote)
@@ -82,12 +83,12 @@ UTP.prototype.send = function (buf, offset, len, port, host, cb) {
 }
 
 UTP.prototype.connect = function (port, host) {
-  if (!this._bound) this.bind()
-
   if (port && typeof port === 'object') return this.connect(port.port, port.host)
   if (typeof port === 'string') port = Number(port)
   if (host && typeof host !== 'string') throw new Error('Host should be a string')
   if (!port) throw new Error('Port should be a number')
+
+  if (!this._bound) this.bind()
 
   // TODO: support dns
   var socket = this._handle.connect(port, host || '127.0.0.1')
