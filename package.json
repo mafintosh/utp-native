@@ -5,8 +5,11 @@
   "main": "index.js",
   "gypfile": true,
   "scripts": {
-    "test": "standard",
-    "install": "cd deps/libutp && make clean && make && cd ../.. && node-gyp rebuild"
+    "install": "cd deps/libutp && make clean && make && cd ../.. && node-gyp rebuild",
+    "lint": "standard",
+    "test:net-api": "tape test/net-api/test-*",
+    "test:socket-api": "tape test/socket-api/test-*",
+    "test": "npm run test:net-api && npm run test:socket-api"
   },
   "dependencies": {
     "bindings": "^1.2.1",
