@@ -3,12 +3,16 @@ var util = require('util')
 var stream = require('readable-stream')
 var bindings = require('bindings')
 var utp = bindings('utp')
+var net = require('net')
+var dns = require('dns')
 
 var UTP_ERRORS = [
   'UTP_ECONNREFUSED',
   'UTP_ECONNRESET',
   'UTP_ETIMEDOUT'
 ]
+
+var IPV4_ONLY = new Error('Only IPv4 is supported currently. Open an issue for IPv6 support')
 
 module.exports = UTP
 
@@ -32,6 +36,7 @@ function UTP () {
   }
 
   function onclose () {
+    self._handle = null
     self.emit('close')
   }
 
@@ -76,9 +81,21 @@ UTP.prototype.send = function (buf, offset, len, port, host, cb) {
   if (host && typeof host !== 'string') throw new Error('Host should be a string')
 
   if (!this._bound) this.bind()
+  if (host && !net.isIPv4(host)) return this._resolveAndSend(buf, offset, len, port, host, cb)
+
   var wrote = this._handle.send(buf, offset, len, Number(port), host || '127.0.0.1')
   process.nextTick(function () {
     if (cb) cb(null, wrote)
+  })
+}
+
+UTP.prototype._resolveAndSend = function (buf, offset, len, port, host, cb) {
+  if (!cb) cb = noop
+  var self = this
+  dns.lookup(host, function (err, ip, family) {
+    if (err) return cb(err)
+    if (family !== 4) return cb(IPV4_ONLY)
+    self.send(buf, offset, len, port, ip, cb)
   })
 }
 
@@ -90,9 +107,12 @@ UTP.prototype.connect = function (port, host) {
 
   if (!this._bound) this.bind()
 
-  // TODO: support dns
-  var socket = this._handle.connect(port, host || '127.0.0.1')
-  return new Connection(this, socket)
+  var conn = new Connection(this)
+
+  if (!host || net.isIPv4(host)) conn._connect(port, host || '127.0.0.1')
+  else conn._resolveAndConnect(port, host)
+
+  return conn
 }
 
 UTP.prototype.bind = function (port, ip, onlistening) {
@@ -138,26 +158,48 @@ UTP.prototype.unref = function () {
 }
 
 UTP.prototype.close = function (cb) {
-  if (cb) {
-    this.once('close', cb)
-  }
-
+  if (cb) this.once('close', cb)
   this._handle.destroy()
 }
 
 function Connection (utp, socket) {
   stream.Duplex.call(this)
 
-  var self = this
-
   this._utp = utp
-  this._socket = socket
+  this._socket = null
   this._index = this._utp.connections.push(this) - 1
   this._dataReq = null
   this._batchReq = null
   this._ondrain = null
   this._ended = false
+  this._resolved = false
   this.destroyed = false
+  this.on('finish', this._finish)
+
+  if (socket) this._onsocket(socket)
+}
+
+util.inherits(Connection, stream.Duplex)
+
+Connection.prototype._connect = function (port, ip) {
+  if (this._utp) this._onsocket(this._utp._handle.connect(port, ip || '127.0.0.1'))
+}
+
+Connection.prototype._resolveAndConnect = function (port, host) {
+  var self = this
+  dns.lookup(host, function (err, ip, family) {
+    self._resolved = true
+    if (err) return self.destroy(err)
+    if (family !== 4) return self.destroy(IPV4_ONLY)
+    self._connect(port, ip)
+  })
+}
+
+Connection.prototype._onsocket = function (socket) {
+  var self = this
+
+  this._resolved = true
+  this._socket = socket
 
   socket.ondrain(ondrain)
   socket.ondata(ondata)
@@ -166,7 +208,7 @@ function Connection (utp, socket) {
   socket.onerror(onerror)
   socket.onconnect(onconnect)
 
-  this.on('finish', this._finish)
+  this.emit('resolve')
 
   function onconnect () {
     self.emit('connect')
@@ -198,8 +240,6 @@ function Connection (utp, socket) {
   }
 }
 
-util.inherits(Connection, stream.Duplex)
-
 Connection.prototype.ref = function () {
   this._utp.ref()
 }
@@ -214,6 +254,7 @@ Connection.prototype.address = function () {
 
 Connection.prototype._write = function (data, enc, cb) {
   if (this.destroyed) return cb()
+  if (!this._resolved) return this.once('resolve', this._write.bind(this, data, enc, cb))
   if (this._socket.write(data)) return cb()
   this._dataReq = data
   this._ondrain = cb
@@ -221,12 +262,14 @@ Connection.prototype._write = function (data, enc, cb) {
 
 Connection.prototype._writev = function (batch, cb) {
   if (this.destroyed) return cb()
+  if (!this._resolved) return this.once('resolve', this._writev.bind(this, batch, cb))
   if (this._socket.writev(batch)) return cb()
   this._batchReq = batch
   this._ondrain = cb
 }
 
 Connection.prototype._finish = function () {
+  if (!this._resolved) return this.once('resolve', this._finish)
   if (this._ended) return
   this._ended = true
   if (this._socket) this._socket.end()
@@ -234,6 +277,7 @@ Connection.prototype._finish = function () {
 }
 
 Connection.prototype.destroy = function (err) {
+  if (!this._resolved) return this.once('resolve', this._destroy.bind(this, err))
   if (this.destroyed) return
   this.destroyed = true
   if (err) this.emit('error', err)

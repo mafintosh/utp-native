@@ -39,6 +39,27 @@ tape('echo socket', function (t) {
   })
 })
 
+tape('echo socket with resolve', function (t) {
+  var socket = utp()
+
+  socket.on('message', function (buf, rinfo) {
+    socket.send(buf, 0, buf.length, rinfo.port, 'localhost')
+  })
+
+  socket.bind(function () {
+    var other = dgram.createSocket('udp4')
+    other.on('message', function (buf, rinfo) {
+      t.same(rinfo.port, socket.address().port)
+      t.same(rinfo.address, '127.0.0.1')
+      t.same(buf, Buffer('hello'))
+      socket.close()
+      other.close()
+      t.end()
+    })
+    other.send(Buffer('hello'), 0, 5, socket.address().port)
+  })
+})
+
 tape('combine server and connection', function (t) {
   var socket = utp()
   var gotClient = false

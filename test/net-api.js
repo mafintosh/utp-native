@@ -23,6 +23,28 @@ tape('server + connect', function (t) {
   })
 })
 
+tape('server + connect with resolve', function (t) {
+  var connected = false
+
+  var server = utp.createServer(function (socket) {
+    connected = true
+    socket.write('hello mike')
+  })
+
+  server.listen(function () {
+    var socket = utp.connect(server.address().port, 'localhost')
+
+    socket.on('connect', function () {
+      socket.destroy()
+      server.close()
+      t.ok(connected, 'connected successfully')
+      t.end()
+    })
+
+    socket.write('hello joe')
+  })
+})
+
 tape('server immediate close', function (t) {
   var server = utp.createServer(function (socket) {
     socket.write('hi')

@@ -226,6 +226,10 @@ NAN_METHOD(UTPWrap::Connect) {
   UTPWrap *self = Nan::ObjectWrap::Unwrap<UTPWrap>(info.This());
   utp_uv_t *handle = &(self->handle);
   utp_socket *socket = utp_uv_connect(handle, port, *ip);
+  if (!socket) {
+    Nan::ThrowError("Could not create socket");
+    return;
+  }
 
   Local<Value> socket_wrap = SocketWrap::NewInstance();
   SocketWrap *socket_unwrap = Nan::ObjectWrap::Unwrap<SocketWrap>(socket_wrap->ToObject());
