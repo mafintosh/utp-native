@@ -116,7 +116,7 @@ UTP.prototype.bind = function (port, ip, onlistening) {
 
 UTP.prototype.listen = function (port, ip, onlistening) {
   if (this._bound && port) throw new Error('Socket is already bound')
-  if (port) this.bind(port, ip, onlistening)
+  if (port !== undefined) this.bind(port, ip, onlistening)
   else this.bind()
 
   if (!this._firewalled) return
