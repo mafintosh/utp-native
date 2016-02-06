@@ -32,18 +32,19 @@ int
 SocketWrap::Drain () {
   Nan::HandleScope scope;
 
-  if (!this->write_buffer_used) return 0;
+  size_t len = this->write_buffer_used - this->write_buffer_offset;
+  if (!len) return 0;
 
+  struct utp_iovec *next = this->write_buffer + this->write_buffer_offset;
   int needs_drain = this->needs_drain;
   this->needs_drain = 0;
 
-  int wrote = utp_uv_socket_writev(this->handle, this->socket, this->write_buffer, this->write_buffer_used);
+  int wrote = utp_uv_socket_writev(this->handle, this->socket, next, len);
   if (wrote < 0) return -1;
 
   size_t wrote_bytes = (size_t) wrote;
-  struct utp_iovec *next = this->write_buffer + this->write_buffer_offset;
 
-  while (wrote_bytes && this->write_buffer_used) {
+  while (wrote_bytes) {
     if (wrote_bytes >= next->iov_len) {
       wrote_bytes -= next->iov_len;
       this->write_buffer_offset++;
