@@ -112,31 +112,60 @@ The socket api allows you to reuse the same underlying UDP socket to both connec
 
 #### `socket = utp()`
 
+Create a new utp socket
+
 #### `socket.bind([port], [host], [onlistening])`
+
+Bind the socket.
 
 #### `socket.on('listening')`
 
+Emitted when the socket is bound.
+
 #### `socket.send(buf, offset, len, port, host, [callback])`
+
+Send a udp message.
 
 #### `socket.on('message', buffer, rinfo)`
 
+Listen for a udp message.
+
 #### `socket.close()`
+
+Close the socket.
+
+#### `address = socket.address()`
+
+Returns an address object, `{port, address}` that tell you which port / address this socket is bound to.
 
 #### `socket.on('close')`
 
+Emitted when the socket is fully closed.
+
 #### `socket.on('error')`
 
-#### `socket.listen()`
+Emitted if the socket experiences an error.
 
-#### `address = connection.address()`
+#### `socket.listen([port], [host], [onlistening])`
 
-#### `connection = socket.connect(port, host)`
+Start listening for incoming connections. Performs a bind as well.
 
 #### `socket.on('connection', connection)`
 
-#### `socket.ref()`
+Emitted after you start listening and a client connects to this socket.
+Connection is similar to the connection used in the net api.
+
+#### `connection = socket.connect(port, host)`
+
+Connect to another socket. Connection is similar to the connection used in the net api.
 
 #### `socket.unref()`
+
+Dereference the socket from the node event loop.
+
+#### `socket.ref()`
+
+Opposite of `socket.unref()`
 
 ## License
 
