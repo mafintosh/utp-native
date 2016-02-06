@@ -1,17 +1,19 @@
 #include "utp_uv.h"
+#include "nan.h"
 #include <stdio.h>
 #include <stdlib.h>
 
 #ifndef _WIN32
-# include <unistd.h>
+#include <unistd.h>
+#endif
+
+#if (NODE_MODULE_VERSION <= NODE_0_10_MODULE_VERSION)
+#define UV_LEGACY
 #endif
 
 #define UTP_UV_TIMEOUT_INTERVAL 500
-
-static void
-DEBUG (const char *msg) {
-  fprintf(stderr, "debug utp_uv: %s\n", msg);
-}
+#define IP_STRING(ip) (const char *) (ip == NULL ? "127.0.0.1" : ip)
+#define DEBUG(msg) fprintf(stderr, "debug utp_uv: %s\n", (const char *) msg);
 
 static void
 on_uv_close (uv_handle_t *handle) {
@@ -34,12 +36,14 @@ really_destroy (utp_uv_t *self) {
   uv_close((uv_handle_t *) handle, on_uv_close);
 }
 
+#ifndef UV_LEGACY
 static void
 on_uv_alloc (uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   utp_uv_t *self = (utp_uv_t *) handle->data;
   buf->base = (char *) &(self->buffer);
   buf->len = UTP_UV_BUFFER_SIZE;
 }
+#endif
 
 static void
 on_uv_read (uv_udp_t* handle, ssize_t nread, const uv_buf_t* buf, const struct sockaddr* addr, unsigned flags) {
@@ -74,6 +78,24 @@ on_uv_interval (uv_timer_t *req) {
   utp_uv_t *self = (utp_uv_t *) req->data;
   utp_check_timeouts(self->context);
 }
+
+#ifdef UV_LEGACY
+static uv_buf_t
+on_uv_alloc_compat (uv_handle_t* handle, size_t suggested_size) {
+  utp_uv_t *self = (utp_uv_t *) handle->data;
+  return uv_buf_init((char *) &(self->buffer), UTP_UV_BUFFER_SIZE);
+}
+
+static void
+on_uv_read_compat (uv_udp_t* handle, ssize_t nread, uv_buf_t buf, struct sockaddr* addr, unsigned flags) {
+  on_uv_read(handle, nread, &buf, addr, flags);
+}
+
+static void
+on_uv_interval_compat (uv_timer_t *req, int status) {
+  on_uv_interval(req);
+}
+#endif
 
 static uint64
 on_utp_read (utp_callback_arguments *a) {
@@ -116,7 +138,7 @@ on_utp_state_change (utp_callback_arguments *a) {
 
 static uint64
 on_utp_log (utp_callback_arguments *a) {
-  DEBUG((const char *) a->buf);
+  DEBUG(a->buf);
   return 0;
 }
 
@@ -136,7 +158,7 @@ on_utp_firewall (utp_callback_arguments *a) {
   return 0;
 }
 
-static uint64
+NAN_INLINE static uint64
 on_utp_sendto (utp_callback_arguments *a) {
   utp_uv_t *self = (utp_uv_t *) utp_context_get_userdata(a->context);
 
@@ -145,7 +167,13 @@ on_utp_sendto (utp_callback_arguments *a) {
     .len = a->len
   };
 
+#ifdef UV_LEGACY
+  struct sockaddr_in *addr = (struct sockaddr_in *) a->address;
+  uv_udp_send(NULL, &(self->handle), &buf, 1, *addr, NULL);
+#else
   uv_udp_try_send(&(self->handle), &buf, 1, a->address);
+#endif
+
   return 0;
 }
 
@@ -212,8 +240,12 @@ utp_uv_connect (utp_uv_t *self, int port, char *ip) {
   struct sockaddr_in addr;
   int ret;
 
-  ret = uv_ip4_addr((const char *) (ip == NULL ? "127.0.0.1" : ip), port, &addr);
+#ifdef UV_LEGACY
+  addr = uv_ip4_addr(IP_STRING(ip), port);
+#else
+  ret = uv_ip4_addr(IP_STRING(ip), port, &addr);
   if (ret) return NULL;
+#endif
 
   utp_socket *socket = utp_create_socket(self->context);
   if (socket == NULL) return NULL;
@@ -239,16 +271,32 @@ utp_uv_bind (utp_uv_t *self, int port, char *ip) {
   uv_udp_t *handle = &(self->handle);
   uv_timer_t *timer = &(self->timer);
 
-  ret = uv_ip4_addr((const char *) (ip == NULL ? "0.0.0.0" : ip), port, &addr);
+#ifdef UV_LEGACY
+  addr = uv_ip4_addr(IP_STRING(ip), port);
+#else
+  ret = uv_ip4_addr(IP_STRING(ip), port, &addr);
   if (ret) return ret;
+#endif
 
+#ifdef UV_LEGACY
+  ret = uv_udp_bind(handle, addr, 0);
+#else
   ret = uv_udp_bind(handle, (const struct sockaddr*) &addr, 0);
+#endif
   if (ret) return ret;
 
+#ifdef UV_LEGACY
+  ret = uv_udp_recv_start(handle, on_uv_alloc_compat, on_uv_read_compat);
+#else
   ret = uv_udp_recv_start(handle, on_uv_alloc, on_uv_read);
+#endif
   if (ret) return ret;
 
+#ifdef UV_LEGACY
+  ret = uv_timer_start(timer, on_uv_interval_compat, UTP_UV_TIMEOUT_INTERVAL, UTP_UV_TIMEOUT_INTERVAL);
+#else
   ret = uv_timer_start(timer, on_uv_interval, UTP_UV_TIMEOUT_INTERVAL, UTP_UV_TIMEOUT_INTERVAL);
+#endif
   if (ret) return ret;
 
   return 0;
@@ -271,12 +319,12 @@ utp_uv_address (utp_uv_t *self, int *port, char *ip) {
   return 0;
 }
 
-int
+NAN_INLINE int
 utp_uv_socket_writev (utp_uv_t *self, utp_socket *socket, struct utp_iovec *bufs, size_t bufs_len) {
   return utp_writev(socket, bufs, bufs_len);
 }
 
-int
+NAN_INLINE int
 utp_uv_socket_write (utp_uv_t *self, utp_socket *socket, char *data, size_t len) {
   return utp_write(socket, data, len);
 }
@@ -306,21 +354,31 @@ utp_uv_destroy (utp_uv_t *self) {
   if (!self->sockets) really_destroy(self);
 }
 
-int
+NAN_INLINE int
 utp_uv_send (utp_uv_t *self, char *data, size_t len, int port, char *ip) {
-  int ret;
   struct sockaddr_in addr;
 
   uv_udp_t *handle = &(self->handle);
-  ret = uv_ip4_addr((const char *) (ip == NULL ? "127.0.0.1" : ip), port, &addr);
+
+#ifdef UV_LEGACY
+  addr = uv_ip4_addr(IP_STRING(ip), port);
+#else
+  int ret;
+  ret = uv_ip4_addr(IP_STRING(ip), port, &addr);
   if (ret) return -1;
+#endif
 
   uv_buf_t buf = {
     .base = data,
     .len = len
   };
 
+#ifdef UV_LEGACY
+  uv_udp_send(NULL, handle, &buf, 1, addr, NULL);
+  return len;
+#else
   return uv_udp_try_send(handle, (const uv_buf_t *) &buf, 1, (const struct sockaddr *) &addr);
+#endif
 }
 
 // int
@@ -329,7 +387,7 @@ utp_uv_send (utp_uv_t *self, char *data, size_t len, int port, char *ip) {
 //   struct sockaddr_in addr;
 
 //   uv_udp_t *handle = &(self->handle);
-//   ret = uv_ip4_addr((const char *) (ip == NULL ? "127.0.0.1" : ip), port, &addr);
+//   ret = uv_ip4_addr(IP_STRING(ip), port, &addr);
 //   if (ret) return -1;
 
 //   uv_buf_t buf = {
