@@ -158,7 +158,7 @@ on_utp_firewall (utp_callback_arguments *a) {
   return 0;
 }
 
-NAN_INLINE static uint64
+static uint64
 on_utp_sendto (utp_callback_arguments *a) {
   utp_uv_t *self = (utp_uv_t *) utp_context_get_userdata(a->context);
 
@@ -319,12 +319,12 @@ utp_uv_address (utp_uv_t *self, int *port, char *ip) {
   return 0;
 }
 
-NAN_INLINE int
+int
 utp_uv_socket_writev (utp_uv_t *self, utp_socket *socket, struct utp_iovec *bufs, size_t bufs_len) {
   return utp_writev(socket, bufs, bufs_len);
 }
 
-NAN_INLINE int
+int
 utp_uv_socket_write (utp_uv_t *self, utp_socket *socket, char *data, size_t len) {
   return utp_write(socket, data, len);
 }
@@ -354,12 +354,11 @@ utp_uv_destroy (utp_uv_t *self) {
   if (!self->sockets) really_destroy(self);
 }
 
-NAN_INLINE int
+int
 utp_uv_send (utp_uv_t *self, char *data, size_t len, int port, char *ip) {
   struct sockaddr_in addr;
 
   uv_udp_t *handle = &(self->handle);
-
 #ifdef UV_LEGACY
   addr = uv_ip4_addr(IP_STRING(ip), port);
 #else
