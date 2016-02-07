@@ -1,3 +1,6 @@
+#ifndef UTP_WRAP_H
+#define UTP_WRAP_H
+
 #include <nan.h>
 #include "utp_uv.h"
 
@@ -38,3 +41,5 @@ private:
   static NAN_METHOD(OnError);
   static NAN_METHOD(OnSocket);
 };
+
+#endif

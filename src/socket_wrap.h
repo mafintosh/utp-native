@@ -1,3 +1,6 @@
+#ifndef SOCKET_WRAP_H
+#define SOCKET_WRAP_H
+
 #include <nan.h>
 #include "utp_uv.h"
 
@@ -41,3 +44,5 @@ private:
   static NAN_METHOD(OnConnect);
   static NAN_METHOD(OnDrain);
 };
+
+#endif
