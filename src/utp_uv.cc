@@ -13,7 +13,7 @@
 
 #define UTP_UV_TIMEOUT_INTERVAL 500
 #define IP_STRING(ip) (const char *) (ip == NULL ? "127.0.0.1" : ip)
-#define DEBUG(msg) fprintf(stderr, "debug utp_uv: %s\n", (const char *) msg);
+#define DBG(msg) fprintf(stderr, "debug utp_uv: %s\n", (const char *) msg);
 
 static void
 on_uv_close (uv_handle_t *handle) {
@@ -129,7 +129,7 @@ on_utp_state_change (utp_callback_arguments *a) {
       break;
 
     default:
-      DEBUG("unknown state change");
+      DBG("unknown state change");
       break;
   }
 
@@ -138,7 +138,7 @@ on_utp_state_change (utp_callback_arguments *a) {
 
 static uint64
 on_utp_log (utp_callback_arguments *a) {
-  DEBUG(a->buf);
+  DBG(a->buf);
   return 0;
 }
 
