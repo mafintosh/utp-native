@@ -6,11 +6,14 @@
   "gypfile": true,
   "scripts": {
     "test-timeouts": "tape test/timeouts.js",
-    "test": "standard && tape test/socket-api.js test/net-api.js"
+    "test": "standard && tape test/socket-api.js test/net-api.js",
+    "prebuild": "prebuild --all --strip --verbose",
+    "install": "prebuild --install"
   },
   "dependencies": {
     "bindings": "^1.2.1",
     "nan": "^2.2.0",
+    "prebuild": "^2.9.1",
     "readable-stream": "^2.0.5"
   },
   "devDependencies": {
