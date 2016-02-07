@@ -6,6 +6,8 @@ Native bindings for libutp. For more information about utp read [BEP 29](http://
 npm install utp-native
 ```
 
+[![build status](http://img.shields.io/travis/mafintosh/utp-native.svg?style=flat)](http://travis-ci.org/mafintosh/utp-native)
+
 ## Usage
 
 ``` js
