@@ -12,8 +12,8 @@
 #endif
 
 #define UTP_UV_TIMEOUT_INTERVAL 500
-#define IP_STRING(ip) (const char *) (ip == NULL ? "127.0.0.1" : ip)
-#define DBG(msg) fprintf(stderr, "debug utp_uv: %s\n", (const char *) msg);
+#define UTP_UV_IP_STRING(ip) (const char *) (ip == NULL ? "127.0.0.1" : ip)
+#define UTP_UV_DEBUG(msg) fprintf(stderr, "debug utp_uv: %s\n", (const char *) msg);
 
 static void
 on_uv_close (uv_handle_t *handle) {
@@ -142,7 +142,7 @@ on_utp_state_change (utp_callback_arguments *a) {
       break;
 
     default:
-      DBG("unknown state change");
+      UTP_UV_DEBUG("unknown state change");
       break;
   }
 
@@ -151,7 +151,7 @@ on_utp_state_change (utp_callback_arguments *a) {
 
 static uint64
 on_utp_log (utp_callback_arguments *a) {
-  DBG(a->buf);
+  UTP_UV_DEBUG(a->buf);
   return 0;
 }
 
@@ -263,9 +263,9 @@ utp_uv_connect (utp_uv_t *self, int port, char *ip) {
   int ret;
 
 #ifdef UV_LEGACY
-  addr = uv_ip4_addr(IP_STRING(ip), port);
+  addr = uv_ip4_addr(UTP_UV_IP_STRING(ip), port);
 #else
-  ret = uv_ip4_addr(IP_STRING(ip), port, &addr);
+  ret = uv_ip4_addr(UTP_UV_IP_STRING(ip), port, &addr);
   if (ret) return NULL;
 #endif
 
@@ -294,9 +294,9 @@ utp_uv_bind (utp_uv_t *self, int port, char *ip) {
   uv_timer_t *timer = &(self->timer);
 
 #ifdef UV_LEGACY
-  addr = uv_ip4_addr(IP_STRING(ip), port);
+  addr = uv_ip4_addr(UTP_UV_IP_STRING(ip), port);
 #else
-  ret = uv_ip4_addr(IP_STRING(ip), port, &addr);
+  ret = uv_ip4_addr(UTP_UV_IP_STRING(ip), port, &addr);
   if (ret) return ret;
 #endif
 
@@ -382,10 +382,10 @@ utp_uv_send (utp_uv_t *self, uv_udp_send_t* req, char *data, size_t len, int por
 
   uv_udp_t *handle = &(self->handle);
 #ifdef UV_LEGACY
-  addr = uv_ip4_addr(IP_STRING(ip), port);
+  addr = uv_ip4_addr(UTP_UV_IP_STRING(ip), port);
 #else
   int ret;
-  ret = uv_ip4_addr(IP_STRING(ip), port, &addr);
+  ret = uv_ip4_addr(UTP_UV_IP_STRING(ip), port, &addr);
   if (ret) return -1;
 #endif
 
