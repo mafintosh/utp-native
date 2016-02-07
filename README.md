@@ -65,6 +65,10 @@ Closes the server.
 
 Emitted when the server is fully closed. Note that this will only happen after all connections to the server are closed.
 
+#### `server.maxConnections`
+
+Set this property is you want to limit the max amount of connections you want to receive
+
 #### `server.connections`
 
 An array of all the connections the server has.

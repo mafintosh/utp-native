@@ -9,6 +9,7 @@
 typedef struct utp_uv {
   void *data;
   size_t sockets;
+  size_t max_sockets;
   int destroyed;
   int firewalled;
 

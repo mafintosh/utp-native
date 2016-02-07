@@ -30,6 +30,7 @@ private:
 
   static NAN_METHOD(New);
   static NAN_METHOD(Context);
+  static NAN_METHOD(MaxSockets);
   static NAN_METHOD(Bind);
   static NAN_METHOD(Send);
   static NAN_METHOD(Address);

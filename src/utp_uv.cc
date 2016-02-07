@@ -168,6 +168,7 @@ static uint64
 on_utp_firewall (utp_callback_arguments *a) {
   utp_uv_t *self = (utp_uv_t *) utp_context_get_userdata(a->context);
   if (!self->on_socket || self->firewalled) return 1;
+  if (self->max_sockets && self->sockets >= self->max_sockets) return 1;
   return 0;
 }
 
@@ -215,6 +216,7 @@ utp_uv_init (utp_uv_t *self) {
   // clear state
   self->firewalled = 0;
   self->sockets = 0;
+  self->max_sockets = 0;
   self->destroyed = 0;
   self->on_message = NULL;
   self->on_send = NULL;

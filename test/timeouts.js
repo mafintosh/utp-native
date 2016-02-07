@@ -39,3 +39,37 @@ tape('write timeout. this may take >20s', function (t) {
     })
   })
 })
+
+tape('server max connections', function (t) {
+  var inc = 0
+  var server = utp.createServer(function (socket) {
+    inc++
+    t.ok(inc < 3)
+    socket.write('hi')
+  })
+
+  server.maxConnections = 2
+  server.listen(0, function () {
+    var a = utp.connect(server.address().port)
+    a.write('hi')
+    a.on('connect', function () {
+      var b = utp.connect(server.address().port)
+      b.write('hi')
+      b.on('connect', function () {
+        var c = utp.connect(server.address().port)
+        c.write('hi')
+        c.on('connect', function () {
+          t.fail('only 2 connections')
+        })
+        c.on('error', function () {
+          a.destroy()
+          b.destroy()
+          c.destroy()
+          server.close()
+          t.pass('should error')
+          t.end()
+        })
+      })
+    })
+  })
+})

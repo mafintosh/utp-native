@@ -25,6 +25,7 @@ function UTP () {
   this._refs = 1
   this._bound = false
   this._firewalled = true
+  this._maxConnections = 0
   this._sending = new Array(64)
   this._sendingFree = []
   this._sendingPending = []
@@ -112,6 +113,16 @@ UTP.prototype.send = function (buf, offset, len, port, host, cb) {
     next(cb, err)
   }
 }
+
+Object.defineProperty(UTP.prototype, 'maxConnections', {
+  get: function () {
+    return this._maxConnections
+  },
+  set: function (val) {
+    this._maxConnections = val
+    this._handle.maxSockets(val)
+  }
+})
 
 UTP.prototype._deferSend = function (buf, offset, len, port, host, cb) {
   this._sendingPending.push(new SendRequest(buf, offset, len, port, host, cb))
@@ -310,9 +321,16 @@ Connection.prototype.destroy = function (err) {
   if (!this._resolved) return this.once('resolve', this._destroy.bind(this, err))
   if (this.destroyed) return
   this.destroyed = true
-  if (err) this.emit('error', err)
-  this.emit('close')
-  this._onend()
+  if (!this._ended) {
+    this._ended = true
+    if (this._socket) this._socket.end()
+    if (err) this.emit('error', err)
+    this.emit('close')
+    this.push(null)
+  } else {
+    if (err) this.emit('error', err)
+    this.emit('close')
+  }
 }
 
 Connection.prototype._read = function () {

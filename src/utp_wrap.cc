@@ -239,6 +239,13 @@ NAN_METHOD(UTPWrap::Address) {
   info.GetReturnValue().Set(scope.Escape(result));
 }
 
+NAN_METHOD(UTPWrap::MaxSockets) {
+  UTPWrap *self = Nan::ObjectWrap::Unwrap<UTPWrap>(info.This());
+  utp_uv_t *handle = &(self->handle);
+
+  handle->max_sockets = (size_t) info[0]->Uint32Value();
+}
+
 NAN_METHOD(UTPWrap::Send) {
   UTPWrap *self = Nan::ObjectWrap::Unwrap<UTPWrap>(info.This());
   utp_uv_t *handle = &(self->handle);
@@ -342,6 +349,7 @@ void UTPWrap::Init () {
   tpl->InstanceTemplate()->SetInternalFieldCount(1);
 
   Nan::SetPrototypeMethod(tpl, "context", UTPWrap::Context);
+  Nan::SetPrototypeMethod(tpl, "maxSockets", UTPWrap::MaxSockets);
   Nan::SetPrototypeMethod(tpl, "bind", UTPWrap::Bind);
   Nan::SetPrototypeMethod(tpl, "send", UTPWrap::Send);
   Nan::SetPrototypeMethod(tpl, "address", UTPWrap::Address);
