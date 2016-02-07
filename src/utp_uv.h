@@ -22,6 +22,7 @@ typedef struct utp_uv {
 
   // callbacks
   void (*on_message) (struct utp_uv *self, char *data, size_t len, int port, char *ip);
+  void (*on_send) (struct utp_uv *self, uv_udp_send_t *req, int status);
   void (*on_close) (struct utp_uv *self);
   void (*on_error) (struct utp_uv *self);
 
@@ -74,7 +75,7 @@ int
 utp_uv_address (utp_uv_t *self, int *port, char *ip);
 
 int
-utp_uv_send (utp_uv_t *self, char *data, size_t len, int port, char *ip);
+utp_uv_send (utp_uv_t *self, uv_udp_send_t* req, char *data, size_t len, int port, char *ip);
 
 void
 utp_uv_debug (utp_uv_t *self);

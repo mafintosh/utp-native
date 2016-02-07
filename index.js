@@ -26,13 +26,24 @@ function UTP () {
   this._refs = 1
   this._bound = false
   this._firewalled = true
+  this._sending = []
+  this._sendingFree = []
   this._handle = utp.utp()
   this._handle.onclose(onclose)
   this._handle.onmessage(onmessage)
+  this._handle.onsend(onsend)
   this._handle.onerror(onerror)
 
   function onmessage (buf, rinfo) {
     self.emit('message', buf, rinfo)
+  }
+
+  function onsend (ptr, error) {
+    var req = self._sending[ptr]
+    self._sending[ptr] = null
+    self._sendingFree.push(ptr)
+    if (error) req.callback(new Error('Send failed'))
+    else req.callback(null, req.buffer.length)
   }
 
   function onclose () {
@@ -81,12 +92,19 @@ UTP.prototype.send = function (buf, offset, len, port, host, cb) {
   if (host && typeof host !== 'string') throw new Error('Host should be a string')
 
   if (!this._bound) this.bind()
+  if (!cb) cb = noop
   if (host && !net.isIPv4(host)) return this._resolveAndSend(buf, offset, len, port, host, cb)
 
-  var wrote = this._handle.send(buf, offset, len, Number(port), host || '127.0.0.1')
-  process.nextTick(function () {
-    if (cb) cb(null, wrote)
-  })
+  var free = this._sendingFree.length ? this._sendingFree.pop() : (this._sending.push(null) - 1)
+  this._sending[free] = new SendRequest(buf, cb)
+
+  try {
+    this._handle.send(free, buf, offset, len, Number(port), host || '127.0.0.1')
+  } catch (err) {
+    this._sending[free] = null
+    this._sendingFree.push(free)
+    next(cb, err)
+  }
 }
 
 UTP.prototype._resolveAndSend = function (buf, offset, len, port, host, cb) {
@@ -299,6 +317,17 @@ Connection.prototype._cleanup = function () {
   this._utp = null
   this._socket = null
   this.emit('finalize')
+}
+
+function SendRequest (buffer, callback) {
+  this.buffer = buffer
+  this.callback = callback
+}
+
+function next (fn, arg) {
+  process.nextTick(function () {
+    fn(arg)
+  })
 }
 
 function emit (self, name, arg) {

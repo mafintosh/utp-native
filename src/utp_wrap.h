@@ -6,9 +6,13 @@ using namespace v8;
 class UTPWrap : public Nan::ObjectWrap {
 public:
   Nan::Callback *on_message;
+  Nan::Callback *on_send;
   Nan::Callback *on_close;
   Nan::Callback *on_error;
   Nan::Callback *on_socket;
+
+  uv_udp_send_t *send_buffer;
+  size_t send_buffer_length;
 
   static void Init ();
   static Local<Value> NewInstance ();
@@ -28,6 +32,7 @@ private:
   static NAN_METHOD(Unref);
   static NAN_METHOD(Connect);
   static NAN_METHOD(OnMessage);
+  static NAN_METHOD(OnSend);
   static NAN_METHOD(OnClose);
   static NAN_METHOD(OnError);
   static NAN_METHOD(OnSocket);

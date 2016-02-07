@@ -90,11 +90,17 @@ tape.skip('only server sends', function (t) {
 })
 
 tape('server listens on a port in use', function (t) {
+  if (Number(process.versions.node.split('.')[0]) === 0) {
+    t.pass('skipping since node 0.10 forces SO_REUSEADDR')
+    t.end()
+    return
+  }
+
   var server = utp.createServer()
   server.listen(0, function () {
     var server2 = utp.createServer()
     server2.listen(server.address().port, function () {
-      t.error('should not be listening')
+      t.fail('should not be listening')
     })
     server2.on('error', function () {
       server.close()

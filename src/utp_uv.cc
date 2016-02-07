@@ -83,7 +83,7 @@ on_uv_interval (uv_timer_t *req) {
 static uv_buf_t
 on_uv_alloc_compat (uv_handle_t* handle, size_t suggested_size) {
   utp_uv_t *self = (utp_uv_t *) handle->data;
-  return uv_buf_init((char *) &(self->buffer), UTP_UV_BUFFER_SIZE);
+  return uv_buf_init(self->buffer, UTP_UV_BUFFER_SIZE);
 }
 
 static void
@@ -95,7 +95,20 @@ static void
 on_uv_interval_compat (uv_timer_t *req, int status) {
   on_uv_interval(req);
 }
+
+static void
+on_uv_send_compat (uv_udp_send_t* req, int status) {
+  free(req->data);
+  free(req);
+}
 #endif
+
+static void
+on_uv_send (uv_udp_send_t* req, int status) {
+  uv_udp_t *handle = req->handle;
+  utp_uv_t *self = (utp_uv_t *) handle->data;
+  if (self->on_send) self->on_send(self, req, status);
+}
 
 static uint64
 on_utp_read (utp_callback_arguments *a) {
@@ -162,18 +175,26 @@ static uint64
 on_utp_sendto (utp_callback_arguments *a) {
   utp_uv_t *self = (utp_uv_t *) utp_context_get_userdata(a->context);
 
+#ifdef UV_LEGACY
+  uv_udp_send_t *req = (uv_udp_send_t *) malloc(sizeof(uv_udp_send_t));
+  if (req == NULL) return 0;
+
+  char *cpy = (char *) malloc(a->len);
+  if (cpy == NULL) return 0;
+  memcpy(cpy, a->buf, a->len);
+
+  req->data = cpy;
+  uv_buf_t buf = uv_buf_init(cpy, a->len);
+  struct sockaddr_in *addr = (struct sockaddr_in *) a->address;
+  uv_udp_send(req, &(self->handle), &buf, 1, *addr, on_uv_send_compat);
+#else
   uv_buf_t buf = {
     .base = (char *) a->buf,
     .len = a->len
   };
 
-#ifdef UV_LEGACY
-  struct sockaddr_in *addr = (struct sockaddr_in *) a->address;
-  uv_udp_send(NULL, &(self->handle), &buf, 1, *addr, NULL);
-#else
   uv_udp_try_send(&(self->handle), &buf, 1, a->address);
 #endif
-
   return 0;
 }
 
@@ -196,6 +217,7 @@ utp_uv_init (utp_uv_t *self) {
   self->sockets = 0;
   self->destroyed = 0;
   self->on_message = NULL;
+  self->on_send = NULL;
   self->on_error = NULL;
   self->on_close = NULL;
   self->on_socket = NULL;
@@ -355,7 +377,7 @@ utp_uv_destroy (utp_uv_t *self) {
 }
 
 int
-utp_uv_send (utp_uv_t *self, char *data, size_t len, int port, char *ip) {
+utp_uv_send (utp_uv_t *self, uv_udp_send_t* req, char *data, size_t len, int port, char *ip) {
   struct sockaddr_in addr;
 
   uv_udp_t *handle = &(self->handle);
@@ -373,26 +395,8 @@ utp_uv_send (utp_uv_t *self, char *data, size_t len, int port, char *ip) {
   };
 
 #ifdef UV_LEGACY
-  uv_udp_send(NULL, handle, &buf, 1, addr, NULL);
-  return len;
+  return uv_udp_send(req, handle, &buf, 1, addr, on_uv_send);
 #else
-  return uv_udp_try_send(handle, (const uv_buf_t *) &buf, 1, (const struct sockaddr *) &addr);
+  return uv_udp_send(req, handle, &buf, 1, (const struct sockaddr *) &addr, on_uv_send);
 #endif
 }
-
-// int
-// utp_uv_send_buffered (utp_uv_t *self, uv_udp_send_t* req, char *data, size_t len, int port, char *ip, uv_udp_send_cb callback) {
-//   int ret;
-//   struct sockaddr_in addr;
-
-//   uv_udp_t *handle = &(self->handle);
-//   ret = uv_ip4_addr(IP_STRING(ip), port, &addr);
-//   if (ret) return -1;
-
-//   uv_buf_t buf = {
-//     .base = data,
-//     .len = len
-//   };
-
-//   return uv_udp_send(req, &(self->handle), &buf, 1);
-// }

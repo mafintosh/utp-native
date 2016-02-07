@@ -25,6 +25,19 @@ callback_on_message (utp_uv_t *self, char *data, size_t len, int port, char *ip)
 }
 
 static void
+callback_on_send (utp_uv_t *self, uv_udp_send_t *req, int status) {
+  Nan::HandleScope scope;
+  UTPWrap *wrap = (UTPWrap *) self->data;
+  if (!wrap->on_send) return;
+
+  Local<Value> argv[] = {
+    Nan::New<Number>((size_t) req->data),
+    Nan::New<Number>(status)
+  };
+  wrap->on_send->Call(2, argv);
+}
+
+static void
 callback_on_close (utp_uv_t *self) {
   Nan::HandleScope scope;
   UTPWrap *wrap = (UTPWrap *) self->data;
@@ -128,12 +141,17 @@ UTPWrap::UTPWrap () {
   handle.data = this;
   handle.firewalled = 1;
 
+  send_buffer = (uv_udp_send_t *) malloc(16 * sizeof(uv_udp_send_t));
+  send_buffer_length = 16;
+
   on_message = NULL;
+  on_send = NULL;
   on_close = NULL;
   on_error = NULL;
   on_socket = NULL;
 
   handle.on_message = callback_on_message;
+  handle.on_send = callback_on_send;
   handle.on_close = callback_on_close;
   handle.on_error = callback_on_error;
   handle.on_socket = callback_on_socket;
@@ -146,6 +164,7 @@ UTPWrap::UTPWrap () {
 }
 
 UTPWrap::~UTPWrap () {
+  free(send_buffer);
   if (on_message) delete on_message;
   if (on_close) delete on_close;
   if (on_error) delete on_error;
@@ -201,14 +220,33 @@ NAN_METHOD(UTPWrap::Send) {
   UTPWrap *self = Nan::ObjectWrap::Unwrap<UTPWrap>(info.This());
   utp_uv_t *handle = &(self->handle);
 
-  Local<Object> buffer = info[0]->ToObject();
-  int offset = info[1]->Uint32Value();
-  int len = info[2]->Uint32Value();
-  int port = info[3]->Uint32Value();
-  Nan::Utf8String ip(info[4]);
+  size_t id = (size_t) info[0]->Uint32Value();
 
-  int sent = utp_uv_send(handle, node::Buffer::Data(buffer) + offset, len, port, *ip);
-  info.GetReturnValue().Set(Nan::New<Number>(sent));
+  Local<Object> buffer = info[1]->ToObject();
+  int offset = info[2]->Uint32Value();
+  int len = info[3]->Uint32Value();
+  int port = info[4]->Uint32Value();
+  Nan::Utf8String ip(info[5]);
+
+  if (id >= self->send_buffer_length) {
+    size_t double_size = 2 * self->send_buffer_length * sizeof(uv_udp_send_t);
+    uv_udp_send_t *new_send_buffer = (uv_udp_send_t *) realloc(self->send_buffer, double_size);
+    if (new_send_buffer == NULL) {
+      Nan::ThrowError("Could not allocate send buffer");
+      return;
+    }
+    self->send_buffer = new_send_buffer;
+    self->send_buffer_length = double_size;
+  }
+
+  uv_udp_send_t *req = self->send_buffer + id;
+  req->data = (void *) id;
+
+  int ret = utp_uv_send(handle, req, node::Buffer::Data(buffer) + offset, len, port, *ip);
+  if (ret) {
+    Nan::ThrowError("Send failed unexpectedly");
+    return;
+  }
 }
 
 NAN_METHOD(UTPWrap::Destroy) {
@@ -263,6 +301,11 @@ NAN_METHOD(UTPWrap::OnMessage) {
   self->on_message = new Nan::Callback(info[0].As<Function>());
 }
 
+NAN_METHOD(UTPWrap::OnSend) {
+  UTPWrap *self = Nan::ObjectWrap::Unwrap<UTPWrap>(info.This());
+  self->on_send = new Nan::Callback(info[0].As<Function>());
+}
+
 NAN_METHOD(UTPWrap::OnClose) {
   UTPWrap *self = Nan::ObjectWrap::Unwrap<UTPWrap>(info.This());
   self->on_close = new Nan::Callback(info[0].As<Function>());
@@ -295,6 +338,7 @@ void UTPWrap::Init () {
   Nan::SetPrototypeMethod(tpl, "connect", UTPWrap::Connect);
   Nan::SetPrototypeMethod(tpl, "debug", UTPWrap::Debug);
   Nan::SetPrototypeMethod(tpl, "onmessage", UTPWrap::OnMessage);
+  Nan::SetPrototypeMethod(tpl, "onsend", UTPWrap::OnSend);
   Nan::SetPrototypeMethod(tpl, "onclose", UTPWrap::OnClose);
   Nan::SetPrototypeMethod(tpl, "onerror", UTPWrap::OnError);
   Nan::SetPrototypeMethod(tpl, "onsocket", UTPWrap::OnSocket);
