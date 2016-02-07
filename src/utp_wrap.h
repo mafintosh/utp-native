@@ -16,6 +16,8 @@ public:
   Nan::Callback *on_error;
   Nan::Callback *on_socket;
 
+  Nan::Persistent<Object> context;
+
   uv_udp_send_t *send_buffer;
 
   static void Init ();
@@ -27,6 +29,7 @@ private:
   utp_uv_t handle;
 
   static NAN_METHOD(New);
+  static NAN_METHOD(Context);
   static NAN_METHOD(Bind);
   static NAN_METHOD(Send);
   static NAN_METHOD(Address);

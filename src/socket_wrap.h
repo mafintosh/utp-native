@@ -15,6 +15,8 @@ public:
   Nan::Callback *on_error;
   Nan::Callback *on_connect;
 
+  Nan::Persistent<Object> context;
+
   utp_uv_t *handle;
   utp_socket *socket;
 
@@ -34,6 +36,7 @@ private:
   int needs_drain;
 
   static NAN_METHOD(New);
+  static NAN_METHOD(Context);
   static NAN_METHOD(End);
   static NAN_METHOD(Write);
   static NAN_METHOD(Writev);

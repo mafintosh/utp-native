@@ -16,12 +16,13 @@ callback_on_message (utp_uv_t *self, char *data, size_t len, int port, char *ip)
   Nan::Set(rinfo, Nan::New<String>("port").ToLocalChecked(), Nan::New<Number>(port));
   Nan::Set(rinfo, Nan::New<String>("size").ToLocalChecked(), Nan::New<Number>(len));
 
+  Local<Object> ctx = Nan::New(wrap->context);
   Local<Value> argv[] = {
     Nan::CopyBuffer((const char *) data, len).ToLocalChecked(),
     rinfo
   };
 
-  wrap->on_message->Call(2, argv);
+  wrap->on_message->Call(ctx, 2, argv);
 }
 
 static void
@@ -30,25 +31,32 @@ callback_on_send (utp_uv_t *self, uv_udp_send_t *req, int status) {
   UTPWrap *wrap = (UTPWrap *) self->data;
   if (!wrap->on_send) return;
 
+  Local<Object> ctx = Nan::New(wrap->context);
   Local<Value> argv[] = {
     Nan::New<Number>((size_t) req->data),
     Nan::New<Number>(status)
   };
-  wrap->on_send->Call(2, argv);
+  wrap->on_send->Call(ctx, 2, argv);
 }
 
 static void
 callback_on_close (utp_uv_t *self) {
   Nan::HandleScope scope;
   UTPWrap *wrap = (UTPWrap *) self->data;
-  if (wrap->on_close) wrap->on_close->Call(0, NULL);
+  if (!wrap->on_close) return;
+
+  Local<Object> ctx = Nan::New(wrap->context);
+  wrap->on_close->Call(ctx, 0, NULL);
 }
 
 static void
 callback_on_error (utp_uv_t *self) {
   Nan::HandleScope scope;
   UTPWrap *wrap = (UTPWrap *) self->data;
-  if (wrap->on_error) wrap->on_error->Call(0, NULL);
+  if (!wrap->on_error) return;
+
+  Local<Object> ctx = Nan::New(wrap->context);
+  wrap->on_error->Call(ctx, 0, NULL);
 }
 
 static void
@@ -57,10 +65,11 @@ callback_on_socket_read (utp_uv_t *self, utp_socket *socket, char *data, size_t 
   SocketWrap *wrap = (SocketWrap *) utp_uv_socket_get_userdata(socket);
   if (!wrap->on_data) return;
 
+  Local<Object> ctx = Nan::New(wrap->context);
   Local<Value> argv[] = {
     Nan::CopyBuffer((const char *) data, len).ToLocalChecked()
   };
-  wrap->on_data->Call(1, argv);
+  wrap->on_data->Call(ctx, 1, argv);
 }
 
 static void
@@ -69,7 +78,8 @@ callback_on_socket_end (utp_uv_t *self, utp_socket *socket) {
   SocketWrap *wrap = (SocketWrap *) utp_uv_socket_get_userdata(socket);
   if (!wrap->on_end) return;
 
-  wrap->on_end->Call(0, NULL);
+  Local<Object> ctx = Nan::New(wrap->context);
+  wrap->on_end->Call(ctx, 0, NULL);
 }
 
 static void
@@ -85,11 +95,12 @@ callback_on_socket_error (utp_uv_t *self, utp_socket *socket, int error) {
   SocketWrap *wrap = (SocketWrap *) utp_uv_socket_get_userdata(socket);
   if (!wrap->on_error) return;
 
+  Local<Object> ctx = Nan::New(wrap->context);
   Local<Value> argv[] = {
     Nan::New<Number>(error)
   };
 
-  wrap->on_error->Call(1, argv);
+  wrap->on_error->Call(ctx, 1, argv);
 }
 
 static void
@@ -98,7 +109,8 @@ callback_on_socket_close (utp_uv_t *self, utp_socket *socket) {
   SocketWrap *wrap = (SocketWrap *) utp_uv_socket_get_userdata(socket);
   if (!wrap->on_close) return;
 
-  wrap->on_close->Call(0, NULL);
+  Local<Object> ctx = Nan::New(wrap->context);
+  wrap->on_close->Call(ctx, 0, NULL);
 }
 
 static void
@@ -108,7 +120,9 @@ callback_on_socket_connect (utp_uv_t *self, utp_socket *socket) {
   wrap->Drain();
 
   if (!wrap->on_connect) return;
-  wrap->on_connect->Call(0, NULL);
+
+  Local<Object> ctx = Nan::New(wrap->context);
+  wrap->on_connect->Call(ctx, 0, NULL);
 }
 
 static void
@@ -118,6 +132,7 @@ callback_on_socket (utp_uv_t *self, utp_socket *socket) {
   if (!wrap->on_socket) return;
 
   Local<Value> socket_wrap = SocketWrap::NewInstance();
+  Local<Object> ctx = Nan::New(wrap->context);
   Local<Value> argv[] = {
     socket_wrap
   };
@@ -127,7 +142,7 @@ callback_on_socket (utp_uv_t *self, utp_socket *socket) {
   socket_unwrap->socket = socket;
   utp_uv_socket_set_userdata(socket, socket_unwrap);
 
-  wrap->on_socket->Call(1, argv);
+  wrap->on_socket->Call(ctx, 1, argv);
 }
 
 UTPWrap::UTPWrap () {
@@ -163,11 +178,13 @@ UTPWrap::UTPWrap () {
 }
 
 UTPWrap::~UTPWrap () {
-  free(send_buffer);
   if (on_message) delete on_message;
   if (on_close) delete on_close;
   if (on_error) delete on_error;
   if (on_socket) delete on_socket;
+
+  free(send_buffer);
+  context.Reset();
 }
 
 NAN_METHOD(UTPWrap::New) {
@@ -189,6 +206,13 @@ NAN_METHOD(UTPWrap::Bind) {
     Nan::ThrowError("Could not bind");
     return;
   }
+}
+
+NAN_METHOD(UTPWrap::Context) {
+  UTPWrap *self = Nan::ObjectWrap::Unwrap<UTPWrap>(info.This());
+
+  Local<Object> context = info[0]->ToObject();
+  self->context.Reset(context);
 }
 
 NAN_METHOD(UTPWrap::Address) {
@@ -317,6 +341,7 @@ void UTPWrap::Init () {
   tpl->SetClassName(Nan::New("UTPWrap").ToLocalChecked());
   tpl->InstanceTemplate()->SetInternalFieldCount(1);
 
+  Nan::SetPrototypeMethod(tpl, "context", UTPWrap::Context);
   Nan::SetPrototypeMethod(tpl, "bind", UTPWrap::Bind);
   Nan::SetPrototypeMethod(tpl, "send", UTPWrap::Send);
   Nan::SetPrototypeMethod(tpl, "address", UTPWrap::Address);

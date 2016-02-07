@@ -25,7 +25,9 @@ SocketWrap::~SocketWrap () {
   if (on_drain) delete on_drain;
   if (on_error) delete on_error;
   if (on_connect) delete on_connect;
+
   free(write_buffer);
+  context.Reset();
 }
 
 int
@@ -61,7 +63,10 @@ SocketWrap::Drain () {
   if (this->write_buffer_used == this->write_buffer_offset) {
     this->write_buffer_used = 0;
     this->write_buffer_offset = 0;
-    if (needs_drain && this->on_drain) this->on_drain->Call(0, NULL);
+    if (needs_drain && this->on_drain) {
+      Local<Object> ctx = Nan::New(this->context);
+      this->on_drain->Call(ctx, 0, NULL);
+    }
   } else {
     this->needs_drain = 1;
   }
@@ -85,6 +90,13 @@ NAN_METHOD(SocketWrap::New) {
   SocketWrap* obj = new SocketWrap();
   obj->Wrap(info.This());
   info.GetReturnValue().Set(info.This());
+}
+
+NAN_METHOD(SocketWrap::Context) {
+  SocketWrap *self = Nan::ObjectWrap::Unwrap<SocketWrap>(info.This());
+
+  Local<Object> context = info[0]->ToObject();
+  self->context.Reset(context);
 }
 
 NAN_METHOD(SocketWrap::Write) {
@@ -184,6 +196,7 @@ void SocketWrap::Init () {
   tpl->SetClassName(Nan::New("SocketWrap").ToLocalChecked());
   tpl->InstanceTemplate()->SetInternalFieldCount(1);
 
+  Nan::SetPrototypeMethod(tpl, "context", SocketWrap::Context);
   Nan::SetPrototypeMethod(tpl, "write", SocketWrap::Write);
   Nan::SetPrototypeMethod(tpl, "writev", SocketWrap::Writev);
   Nan::SetPrototypeMethod(tpl, "end", SocketWrap::End);

@@ -19,7 +19,6 @@ module.exports = UTP
 function UTP () {
   if (!(this instanceof UTP)) return new UTP()
   events.EventEmitter.call(this)
-  var self = this
 
   this.connections = []
 
@@ -30,33 +29,13 @@ function UTP () {
   this._sendingFree = []
   this._sendingPending = []
   for (var i = 63; i >= 0; i--) this._sendingFree.push(i)
+
   this._handle = utp.utp()
-  this._handle.onclose(onclose)
-  this._handle.onmessage(onmessage)
-  this._handle.onsend(onsend)
-  this._handle.onerror(onerror)
-
-  function onmessage (buf, rinfo) {
-    self.emit('message', buf, rinfo)
-  }
-
-  function onsend (ptr, error) {
-    var req = self._sending[ptr]
-    self._sending[ptr] = null
-    self._sendingFree.push(ptr)
-    self._free()
-    if (error) req.callback(new Error('Send failed'))
-    else req.callback(null, req.buffer.length)
-  }
-
-  function onclose () {
-    self._handle = null
-    self.emit('close')
-  }
-
-  function onerror () {
-    self.emit(new Error('Unknown UDP error'))
-  }
+  this._handle.context(this)
+  this._handle.onclose(this._onclose)
+  this._handle.onmessage(this._onmessage)
+  this._handle.onsend(this._onsend)
+  this._handle.onerror(this._onerror)
 }
 
 util.inherits(UTP, events.EventEmitter)
@@ -80,6 +59,28 @@ function oncloseable () {
   UTP.client.close()
   UTP.client.on('error', noop)
   UTP.client = null
+}
+
+UTP.prototype._onmessage = function (buf, rinfo) {
+  this.emit('message', buf, rinfo)
+}
+
+UTP.prototype._onsend = function (ptr, error) {
+  var req = this._sending[ptr]
+  this._sending[ptr] = null
+  this._sendingFree.push(ptr)
+  this._free()
+  if (error) req.callback(new Error('Send failed'))
+  else req.callback(null, req.buffer.length)
+}
+
+UTP.prototype._onclose = function () {
+  this._handle = null
+  this.emit('close')
+}
+
+UTP.prototype._onerror = function () {
+  this.emit(new Error('Unknown UDP error'))
 }
 
 UTP.prototype.address = function () {
@@ -176,11 +177,11 @@ UTP.prototype.listen = function (port, ip, onlistening) {
 
   if (!this._firewalled) return
   this._firewalled = false
+  this._handle.onsocket(this._onsocket)
+}
 
-  var self = this
-  this._handle.onsocket(function (socket) {
-    self.emit('connection', new Connection(self, socket))
-  })
+UTP.prototype._onsocket = function (socket) {
+  this.emit('connection', new Connection(this, socket))
 }
 
 UTP.prototype.ref = function () {
@@ -204,11 +205,11 @@ function Connection (utp, socket) {
   this._index = this._utp.connections.push(this) - 1
   this._dataReq = null
   this._batchReq = null
-  this._ondrain = null
+  this._drain = null
   this._ended = false
   this._resolved = false
   this.destroyed = false
-  this.on('finish', this._finish)
+  this.on('finish', this._onend)
 
   if (socket) this._onsocket(socket)
 }
@@ -230,48 +231,43 @@ Connection.prototype._resolveAndConnect = function (port, host) {
 }
 
 Connection.prototype._onsocket = function (socket) {
-  var self = this
-
   this._resolved = true
   this._socket = socket
 
-  socket.ondrain(ondrain)
-  socket.ondata(ondata)
-  socket.onend(onend)
-  socket.onclose(onclose)
-  socket.onerror(onerror)
-  socket.onconnect(onconnect)
+  socket.context(this)
+  socket.ondrain(this._ondrain)
+  socket.ondata(this._ondata)
+  socket.onend(this._onend)
+  socket.onclose(this._onclose)
+  socket.onerror(this._onerror)
+  socket.onconnect(this._onconnect)
 
   this.emit('resolve')
+}
 
-  function onconnect () {
-    self.emit('connect')
-  }
+Connection.prototype._onclose = function () {
+  this._cleanup()
+  this.destroy()
+}
 
-  function onerror (error) {
-    self.destroy(new Error(UTP_ERRORS[error] || 'UTP_UNKNOWN_ERROR'))
-  }
+Connection.prototype._ondrain = function () {
+  var drain = this._drain
+  this._drain = null
+  this._batchReq = null
+  this._dataReq = null
+  if (drain) drain()
+}
 
-  function onclose () {
-    self._cleanup()
-    self.destroy()
-  }
+Connection.prototype._ondata = function (data) {
+  this.push(data)
+}
 
-  function onend () {
-    self._finish()
-  }
+Connection.prototype._onerror = function (error) {
+  this.destroy(new Error(UTP_ERRORS[error] || 'UTP_UNKNOWN_ERROR'))
+}
 
-  function ondata (data) {
-    self.push(data)
-  }
-
-  function ondrain () {
-    var ondrain = self._ondrain
-    self._ondrain = null
-    self._batchReq = null
-    self._dataReq = null
-    if (ondrain) ondrain()
-  }
+Connection.prototype._onconnect = function () {
+  this.emit('connect')
 }
 
 Connection.prototype.ref = function () {
@@ -291,7 +287,7 @@ Connection.prototype._write = function (data, enc, cb) {
   if (!this._resolved) return this.once('resolve', this._write.bind(this, data, enc, cb))
   if (this._socket.write(data)) return cb()
   this._dataReq = data
-  this._ondrain = cb
+  this._drain = cb
 }
 
 Connection.prototype._writev = function (batch, cb) {
@@ -299,11 +295,11 @@ Connection.prototype._writev = function (batch, cb) {
   if (!this._resolved) return this.once('resolve', this._writev.bind(this, batch, cb))
   if (this._socket.writev(batch)) return cb()
   this._batchReq = batch
-  this._ondrain = cb
+  this._drain = cb
 }
 
-Connection.prototype._finish = function () {
-  if (!this._resolved) return this.once('resolve', this._finish)
+Connection.prototype._onend = function () {
+  if (!this._resolved) return this.once('resolve', this._onend)
   if (this._ended) return
   this._ended = true
   if (this._socket) this._socket.end()
@@ -316,7 +312,7 @@ Connection.prototype.destroy = function (err) {
   this.destroyed = true
   if (err) this.emit('error', err)
   this.emit('close')
-  this._finish()
+  this._onend()
 }
 
 Connection.prototype._read = function () {
