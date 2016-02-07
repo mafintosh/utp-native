@@ -1,6 +1,6 @@
 # utp-native
 
-Native bindings for libutp. For more information about utp read [BEP 29](http://www.bittorrent.org/beps/bep_0029.html).
+Native bindings for [libutp](https://github.com/bittorrent/libutp). For more information about utp read [BEP 29](http://www.bittorrent.org/beps/bep_0029.html).
 
 ```
 npm install utp-native
