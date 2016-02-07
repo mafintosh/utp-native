@@ -10,6 +10,9 @@
     "prebuild": "prebuild --all --strip --verbose",
     "install": "prebuild --install"
   },
+  "bin": {
+    "ucat": "./ucat.js"
+  },
   "dependencies": {
     "bindings": "^1.2.1",
     "nan": "^2.2.0",
