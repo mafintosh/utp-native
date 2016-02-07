@@ -3,6 +3,8 @@
 
 using namespace v8;
 
+#define UTP_WRAP_SEND_BUFFER_SIZE 64
+
 class UTPWrap : public Nan::ObjectWrap {
 public:
   Nan::Callback *on_message;
@@ -12,7 +14,6 @@ public:
   Nan::Callback *on_socket;
 
   uv_udp_send_t *send_buffer;
-  size_t send_buffer_length;
 
   static void Init ();
   static Local<Value> NewInstance ();

@@ -26,8 +26,10 @@ function UTP () {
   this._refs = 1
   this._bound = false
   this._firewalled = true
-  this._sending = []
+  this._sending = new Array(64)
   this._sendingFree = []
+  this._sendingPending = []
+  for (var i = 63; i >= 0; i--) this._sendingFree.push(i)
   this._handle = utp.utp()
   this._handle.onclose(onclose)
   this._handle.onmessage(onmessage)
@@ -42,6 +44,7 @@ function UTP () {
     var req = self._sending[ptr]
     self._sending[ptr] = null
     self._sendingFree.push(ptr)
+    self._free()
     if (error) req.callback(new Error('Send failed'))
     else req.callback(null, req.buffer.length)
   }
@@ -94,16 +97,29 @@ UTP.prototype.send = function (buf, offset, len, port, host, cb) {
   if (!this._bound) this.bind()
   if (!cb) cb = noop
   if (host && !net.isIPv4(host)) return this._resolveAndSend(buf, offset, len, port, host, cb)
+  if (!this._sendingFree.length) return this._deferSend(buf, offset, len, port, host, cb)
 
-  var free = this._sendingFree.length ? this._sendingFree.pop() : (this._sending.push(null) - 1)
-  this._sending[free] = new SendRequest(buf, cb)
+  var free = this._sendingFree.pop()
+  this._sending[free] = new SendRequest(buf, offset, len, port, host, cb)
 
   try {
     this._handle.send(free, buf, offset, len, Number(port), host || '127.0.0.1')
   } catch (err) {
     this._sending[free] = null
     this._sendingFree.push(free)
+    this._free()
     next(cb, err)
+  }
+}
+
+UTP.prototype._deferSend = function (buf, offset, len, port, host, cb) {
+  this._sendingPending.push(new SendRequest(buf, offset, len, port, host, cb))
+}
+
+UTP.prototype._free = function () {
+  if (this._sendingPending.length) {
+    var req = this._sendingPending.shift()
+    this.send(req.buffer, req.offset, req.length, req.port, req.host, req.callback)
   }
 }
 
@@ -319,8 +335,12 @@ Connection.prototype._cleanup = function () {
   this.emit('finalize')
 }
 
-function SendRequest (buffer, callback) {
+function SendRequest (buffer, offset, len, port, host, callback) {
   this.buffer = buffer
+  this.offset = offset
+  this.length = len
+  this.port = port
+  this.host = host
   this.callback = callback
 }
 

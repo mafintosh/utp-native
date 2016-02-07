@@ -141,8 +141,7 @@ UTPWrap::UTPWrap () {
   handle.data = this;
   handle.firewalled = 1;
 
-  send_buffer = (uv_udp_send_t *) malloc(16 * sizeof(uv_udp_send_t));
-  send_buffer_length = 16;
+  send_buffer = (uv_udp_send_t *) malloc(UTP_WRAP_SEND_BUFFER_SIZE * sizeof(uv_udp_send_t));
 
   on_message = NULL;
   on_send = NULL;
@@ -227,17 +226,6 @@ NAN_METHOD(UTPWrap::Send) {
   int len = info[3]->Uint32Value();
   int port = info[4]->Uint32Value();
   Nan::Utf8String ip(info[5]);
-
-  if (id >= self->send_buffer_length) {
-    size_t double_size = 2 * self->send_buffer_length * sizeof(uv_udp_send_t);
-    uv_udp_send_t *new_send_buffer = (uv_udp_send_t *) realloc(self->send_buffer, double_size);
-    if (new_send_buffer == NULL) {
-      Nan::ThrowError("Could not allocate send buffer");
-      return;
-    }
-    self->send_buffer = new_send_buffer;
-    self->send_buffer_length = double_size;
-  }
 
   uv_udp_send_t *req = self->send_buffer + id;
   req->data = (void *) id;
