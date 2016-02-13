@@ -81,3 +81,32 @@ tape('combine server and connection', function (t) {
     })
   })
 })
+
+tape('both ends write first', function (t) {
+  var missing = 2
+  var socket = utp()
+
+  socket.on('connection', function (connection) {
+    connection.write('a')
+    connection.on('data', function (data) {
+      t.same(data, Buffer('b'))
+      done()
+    })
+  })
+
+  socket.listen(0, function () {
+    var connection = socket.connect(socket.address().port)
+    connection.write('b')
+    connection.on('data', function (data) {
+      t.same(data, Buffer('a'))
+      connection.end()
+      done()
+    })
+  })
+
+  function done () {
+    if (--missing) return
+    socket.close()
+    t.end()
+  }
+})
