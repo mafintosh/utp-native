@@ -14,6 +14,9 @@ var UTP_ERRORS = [
 ]
 
 var IPV4_ONLY = new Error('Only IPv4 is supported currently. Open an issue for IPv6 support')
+var unenroll = timers.unenroll || noop
+var active = timers._unrefActive || timers.active || noop
+var enroll = timers.enroll || noop
 
 module.exports = UTP
 
@@ -256,11 +259,11 @@ Connection.prototype._resolveAndConnect = function (port, host) {
 
 Connection.prototype.setTimeout = function (ms, ontimeout) {
   if (!ms) {
-    timers.unenroll(this)
+    unenroll(this)
     if (ontimeout) this.removeListener('timeout', ontimeout)
   } else {
-    timers.enroll(this, ms)
-    timers._unrefActive(this)
+    enroll(this, ms)
+    active(this)
     if (ontimeout) this.once('timeout', ontimeout)
   }
   return this
@@ -295,7 +298,7 @@ Connection.prototype._ondrain = function () {
 }
 
 Connection.prototype._ondata = function (data) {
-  timers._unrefActive(this)
+  active(this)
   this.push(data)
 }
 
@@ -322,7 +325,7 @@ Connection.prototype.address = function () {
 Connection.prototype._write = function (data, enc, cb) {
   if (this.destroyed) return cb()
   if (!this._resolved) return this.once('resolve', this._write.bind(this, data, enc, cb))
-  timers._unrefActive(this)
+  active(this)
   if (this._socket.write(data)) return cb()
   this._dataReq = data
   this._drain = cb
@@ -331,7 +334,7 @@ Connection.prototype._write = function (data, enc, cb) {
 Connection.prototype._writev = function (batch, cb) {
   if (this.destroyed) return cb()
   if (!this._resolved) return this.once('resolve', this._writev.bind(this, batch, cb))
-  timers._unrefActive(this)
+  active(this)
   if (this._socket.writev(batch)) return cb()
   this._batchReq = batch
   this._drain = cb
@@ -349,6 +352,7 @@ Connection.prototype.destroy = function (err) {
   if (!this._resolved) return this.once('resolve', this._destroy.bind(this, err))
   if (this.destroyed) return
   this.destroyed = true
+  unenroll(this)
   if (!this._ended) {
     this._ended = true
     if (this._socket) this._socket.end()
@@ -372,7 +376,7 @@ Connection.prototype._cleanup = function () {
     last._index = this._index
   }
   if (!this._utp.connections.length) this._utp.emit('closeable')
-  timers.unenroll(this)
+  unenroll(this)
   this._utp = null
   this._socket = null
   this.emit('finalize')
