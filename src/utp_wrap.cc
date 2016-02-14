@@ -70,6 +70,10 @@ callback_on_socket_read (utp_uv_t *self, utp_socket *socket, char *data, size_t 
     Nan::CopyBuffer((const char *) data, len).ToLocalChecked()
   };
   wrap->on_data->Call(ctx, 1, argv);
+  if (wrap->first_read) {
+    wrap->Drain();
+    wrap->first_read = 0;
+  }
 }
 
 static void

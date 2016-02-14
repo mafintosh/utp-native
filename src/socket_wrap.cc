@@ -11,6 +11,7 @@ SocketWrap::SocketWrap () {
   on_connect = NULL;
 
   needs_drain = 0;
+  first_read = 1;
 
   write_buffer = (struct utp_iovec *) malloc(16 * sizeof(struct utp_iovec));
   write_buffer_length = 16;

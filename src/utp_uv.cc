@@ -115,10 +115,6 @@ on_utp_read (utp_callback_arguments *a) {
   utp_uv_t *self = (utp_uv_t *) utp_context_get_userdata(a->context);
   if (self->on_socket_read) self->on_socket_read(self, a->socket, (char *) a->buf, a->len);
   utp_read_drained(a->socket);
-  if (self->first_read) {
-    self->first_read = 0;
-    if (self->on_socket_writable) self->on_socket_writable(self, a->socket);
-  }
   return 0;
 }
 
@@ -222,7 +218,6 @@ utp_uv_init (utp_uv_t *self) {
   self->sockets = 0;
   self->max_sockets = 0;
   self->destroyed = 0;
-  self->first_read = 1;
   self->on_message = NULL;
   self->on_send = NULL;
   self->on_error = NULL;

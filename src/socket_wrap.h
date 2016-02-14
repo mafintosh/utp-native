@@ -19,6 +19,7 @@ public:
 
   utp_uv_t *handle;
   utp_socket *socket;
+  int first_read;
 
   struct utp_iovec *write_buffer;
   size_t write_buffer_offset;

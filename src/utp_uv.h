@@ -12,7 +12,6 @@ typedef struct utp_uv {
   size_t max_sockets;
   int destroyed;
   int firewalled;
-  int first_read;
 
   // uv
   uv_udp_t handle;
