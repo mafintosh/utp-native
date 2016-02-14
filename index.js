@@ -1,5 +1,6 @@
 var events = require('events')
 var util = require('util')
+var timers = require('timers')
 var stream = require('readable-stream')
 var bindings = require('bindings')
 var utp = bindings('utp')
@@ -219,6 +220,14 @@ function Connection (utp, socket) {
   this._drain = null
   this._ended = false
   this._resolved = false
+
+  // set by timer
+  this._idleTimeout = -1
+  this._idleNext = null
+  this._idlePrev = null
+  this._idleStart = 0
+  this._called = false
+
   this.destroyed = false
   this.on('finish', this._onend)
 
@@ -231,6 +240,10 @@ Connection.prototype._connect = function (port, ip) {
   if (this._utp) this._onsocket(this._utp._handle.connect(port, ip || '127.0.0.1'))
 }
 
+Connection.prototype._onTimeout = function () {
+  this.emit('timeout')
+}
+
 Connection.prototype._resolveAndConnect = function (port, host) {
   var self = this
   dns.lookup(host, function (err, ip, family) {
@@ -239,6 +252,18 @@ Connection.prototype._resolveAndConnect = function (port, host) {
     if (family !== 4) return self.destroy(IPV4_ONLY)
     self._connect(port, ip)
   })
+}
+
+Connection.prototype.setTimeout = function (ms, ontimeout) {
+  if (!ms) {
+    timers.unenroll(this)
+    if (ontimeout) this.removeListener('timeout', ontimeout)
+  } else {
+    timers.enroll(this, ms)
+    timers._unrefActive(this)
+    if (ontimeout) this.once('timeout', ontimeout)
+  }
+  return this
 }
 
 Connection.prototype._onsocket = function (socket) {
@@ -270,6 +295,7 @@ Connection.prototype._ondrain = function () {
 }
 
 Connection.prototype._ondata = function (data) {
+  timers._unrefActive(this)
   this.push(data)
 }
 
@@ -296,6 +322,7 @@ Connection.prototype.address = function () {
 Connection.prototype._write = function (data, enc, cb) {
   if (this.destroyed) return cb()
   if (!this._resolved) return this.once('resolve', this._write.bind(this, data, enc, cb))
+  timers._unrefActive(this)
   if (this._socket.write(data)) return cb()
   this._dataReq = data
   this._drain = cb
@@ -304,6 +331,7 @@ Connection.prototype._write = function (data, enc, cb) {
 Connection.prototype._writev = function (batch, cb) {
   if (this.destroyed) return cb()
   if (!this._resolved) return this.once('resolve', this._writev.bind(this, batch, cb))
+  timers._unrefActive(this)
   if (this._socket.writev(batch)) return cb()
   this._batchReq = batch
   this._drain = cb
@@ -344,6 +372,7 @@ Connection.prototype._cleanup = function () {
     last._index = this._index
   }
   if (!this._utp.connections.length) this._utp.emit('closeable')
+  timers.unenroll(this)
   this._utp = null
   this._socket = null
   this.emit('finalize')

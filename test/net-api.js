@@ -303,3 +303,25 @@ tape('close waits for connections to close', function (t) {
     socket.end()
   })
 })
+
+tape('timeout', function (t) {
+  var serverClosed = false
+  var server = utp.createServer(function (socket) {
+    socket.write('hi')
+    socket.setTimeout(100, socket.destroy)
+    socket.on('close', function () {
+      serverClosed = true
+      server.close()
+    })
+  })
+
+  server.listen(0, function () {
+    var socket = utp.connect(server.address().port)
+    socket.write('hi')
+    socket.setTimeout(500, socket.destroy)
+    socket.on('close', function () {
+      t.ok(serverClosed)
+      t.end()
+    })
+  })
+})
