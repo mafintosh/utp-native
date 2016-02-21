@@ -45,6 +45,25 @@ tape('server + connect with resolve', function (t) {
   })
 })
 
+tape('bad resolve', function (t) {
+  t.plan(2)
+
+  var socket = utp.connect(10000, 'domain.does-not-exist')
+
+  socket.on('connect', function () {
+    t.fail('should not connect')
+  })
+
+  socket.on('error', function () {
+    t.pass('errored')
+  })
+
+  socket.on('close', function () {
+    t.pass('closed')
+    t.end()
+  })
+})
+
 tape('server immediate close', function (t) {
   var server = utp.createServer(function (socket) {
     socket.write('hi')
@@ -306,22 +325,32 @@ tape('close waits for connections to close', function (t) {
 
 tape('timeout', function (t) {
   var serverClosed = false
+  var clientClosed = false
+  var missing = 2
+
   var server = utp.createServer(function (socket) {
-    socket.write('hi')
     socket.setTimeout(100, socket.destroy)
+    socket.write('hi')
     socket.on('close', function () {
       serverClosed = true
-      server.close()
+      done()
     })
   })
 
   server.listen(0, function () {
     var socket = utp.connect(server.address().port)
     socket.write('hi')
-    socket.setTimeout(500, socket.destroy)
     socket.on('close', function () {
-      t.ok(serverClosed)
-      t.end()
+      clientClosed = true
+      done()
     })
   })
+
+  function done () {
+    if (--missing) return
+    server.close()
+    t.ok(clientClosed)
+    t.ok(serverClosed)
+    t.end()
+  }
 })

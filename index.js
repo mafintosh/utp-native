@@ -250,6 +250,7 @@ Connection.prototype._onTimeout = function () {
 Connection.prototype._resolveAndConnect = function (port, host) {
   var self = this
   dns.lookup(host, function (err, ip, family) {
+    if (self.destroyed) return
     self._resolved = true
     if (err) return self.destroy(err)
     if (family !== 4) return self.destroy(IPV4_ONLY)
@@ -261,7 +262,7 @@ Connection.prototype.setTimeout = function (ms, ontimeout) {
   if (!ms) {
     unenroll(this)
     if (ontimeout) this.removeListener('timeout', ontimeout)
-  } else {
+  } else if (!this.destroyed) {
     enroll(this, ms)
     active(this)
     if (ontimeout) this.once('timeout', ontimeout)
@@ -285,8 +286,9 @@ Connection.prototype._onsocket = function (socket) {
 }
 
 Connection.prototype._onclose = function () {
+  this.destroyed = true
   this._cleanup()
-  this.destroy()
+  this.emit('close')
 }
 
 Connection.prototype._ondrain = function () {
@@ -298,6 +300,7 @@ Connection.prototype._ondrain = function () {
 }
 
 Connection.prototype._ondata = function (data) {
+  if (this.destroyed) return
   active(this)
   this.push(data)
 }
@@ -326,6 +329,7 @@ Connection.prototype._write = function (data, enc, cb) {
   if (this.destroyed) return cb()
   if (!this._resolved) return this.once('resolve', this._write.bind(this, data, enc, cb))
   active(this)
+
   if (this._socket.write(data)) return cb()
   this._dataReq = data
   this._drain = cb
@@ -335,6 +339,7 @@ Connection.prototype._writev = function (batch, cb) {
   if (this.destroyed) return cb()
   if (!this._resolved) return this.once('resolve', this._writev.bind(this, batch, cb))
   active(this)
+
   if (this._socket.writev(batch)) return cb()
   this._batchReq = batch
   this._drain = cb
@@ -345,22 +350,21 @@ Connection.prototype._onend = function () {
   if (this._ended) return
   this._ended = true
   if (this._socket) this._socket.end()
-  this.push(null)
+  if (!this.destroyed) this.push(null)
 }
 
 Connection.prototype.destroy = function (err) {
   if (!this._resolved) return this.once('resolve', this._destroy.bind(this, err))
   if (this.destroyed) return
   this.destroyed = true
+
   unenroll(this)
-  if (!this._ended) {
-    this._ended = true
-    if (this._socket) this._socket.end()
-    if (err) this.emit('error', err)
-    this.emit('close')
-    this.push(null)
-  } else {
-    if (err) this.emit('error', err)
+  if (err) this.emit('error', err)
+
+  this._onend()
+
+  if (!this._socket) {
+    this._cleanup()
     this.emit('close')
   }
 }
@@ -375,11 +379,11 @@ Connection.prototype._cleanup = function () {
     this._utp.connections[this._index] = last
     last._index = this._index
   }
+
   if (!this._utp.connections.length) this._utp.emit('closeable')
   unenroll(this)
   this._utp = null
   this._socket = null
-  this.emit('finalize')
 }
 
 function SendRequest (buffer, offset, len, port, host, callback) {
