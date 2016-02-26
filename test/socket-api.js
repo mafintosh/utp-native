@@ -14,7 +14,7 @@ tape('dgram-like socket', function (t) {
   })
 
   socket.bind(function () {
-    socket.send(Buffer('hello'), 0, 5, socket.address().port)
+    socket.send(Buffer('hello'), 0, 5, socket.address().port, '127.0.0.1')
   })
 })
 
@@ -50,7 +50,7 @@ tape('echo socket', function (t) {
       other.close()
       t.end()
     })
-    other.send(Buffer('hello'), 0, 5, socket.address().port)
+    other.send(Buffer('hello'), 0, 5, socket.address().port, '127.0.0.1')
   })
 })
 
@@ -71,7 +71,7 @@ tape('echo socket with resolve', function (t) {
       other.close()
       t.end()
     })
-    other.send(Buffer('hello'), 0, 5, socket.address().port)
+    other.send(Buffer('hello'), 0, 5, socket.address().port, '127.0.0.1')
   })
 })
 
