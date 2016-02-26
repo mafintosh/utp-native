@@ -27,6 +27,7 @@ function UTP () {
   this.connections = []
 
   this._refs = 1
+  this._closed = false
   this._bound = false
   this._firewalled = true
   this._maxConnections = 0
@@ -208,8 +209,15 @@ UTP.prototype.unref = function () {
 }
 
 UTP.prototype.close = function (cb) {
-  if (cb) this.once('close', cb)
-  this._handle.destroy()
+  if (this._handle) {
+    if (cb) this.once('close', cb)
+    if (this._closed) return
+    this._closed = true
+    this._handle.destroy()
+    return
+  }
+
+  if (cb) process.nextTick(cb)
 }
 
 function Connection (utp, socket) {
