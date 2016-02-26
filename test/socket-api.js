@@ -18,6 +18,21 @@ tape('dgram-like socket', function (t) {
   })
 })
 
+tape('double close', function (t) {
+  var socket = utp()
+
+  socket.on('close', function () {
+    socket.close(function () {
+      t.pass('closed twice')
+      t.end()
+    })
+  })
+
+  socket.bind(0, function () {
+    socket.close()
+  })
+})
+
 tape('echo socket', function (t) {
   var socket = utp()
 
