@@ -15,13 +15,13 @@
   },
   "dependencies": {
     "bindings": "^1.2.1",
-    "nan": "^2.2.0",
-    "prebuild": "^2.9.1",
-    "readable-stream": "^2.0.5"
+    "nan": "^2.3.3",
+    "prebuild": "^4.1.2",
+    "readable-stream": "^2.1.2"
   },
   "devDependencies": {
-    "standard": "^5.4.1",
-    "tape": "^4.4.0"
+    "standard": "^7.0.1",
+    "tape": "^4.5.1"
   },
   "repository": {
     "type": "git",
