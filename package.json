@@ -16,7 +16,7 @@
   "dependencies": {
     "bindings": "^1.2.1",
     "nan": "^2.3.3",
-    "prebuild": "^4.1.2",
+    "prebuild": "^5.0.1",
     "readable-stream": "^2.1.2"
   },
   "devDependencies": {
