@@ -8,7 +8,7 @@
     "test-timeouts": "tape test/timeouts.js",
     "test": "standard && tape test/socket-api.js test/net-api.js && prebuild-ci",
     "prebuild": "prebuild --all --strip --verbose",
-    "install": "prebuild --install"
+    "install": "prebuild-install || node-gyp rebuild"
   },
   "bin": {
     "ucat": "./ucat.js"
@@ -16,11 +16,12 @@
   "dependencies": {
     "bindings": "^1.2.1",
     "nan": "^2.3.3",
-    "prebuild": "^5.0.1",
+    "prebuild-install": "^2.1.0",
     "readable-stream": "^2.1.2"
   },
   "devDependencies": {
-    "prebuild-ci": "^1.0.9",
+    "prebuild": "^6.0.2",
+    "prebuild-ci": "^2.0.0",
     "standard": "^7.0.1",
     "tape": "^4.5.1"
   },
