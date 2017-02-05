@@ -3,7 +3,7 @@
     {
       'target_name': 'utp',
       'dependencies': [
-        'deps/libutp/libutp.gyp:libutp',
+        'deps/libutp.gyp:libutp',
       ],
       'include_dirs' : [
         "<!(node -e \"require('nan')\")",
@@ -15,6 +15,14 @@
         'src/utp_wrap.cc',
         'binding.cc',
       ],
-   }
+      'xcode_settings': {
+        'OTHER_CFLAGS': [
+          '-O3',
+        ]
+      },
+      'cflags': [
+        '-O3',
+      ],
+    }
   ]
 }

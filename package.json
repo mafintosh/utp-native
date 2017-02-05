@@ -6,23 +6,21 @@
   "gypfile": true,
   "scripts": {
     "test-timeouts": "tape test/timeouts.js",
-    "test": "standard && tape test/socket-api.js test/net-api.js && prebuild-ci",
-    "prebuild": "prebuild --all --strip --verbose",
-    "install": "prebuild --install"
+    "test": "standard && tape test/socket-api.js test/net-api.js",
+    "prebuild": "prebuildify --all --strip",
+    "prebuild-ia32": "prebuildify --all --strip --arch=ia32"
   },
   "bin": {
     "ucat": "./ucat.js"
   },
   "dependencies": {
-    "bindings": "^1.2.1",
-    "nan": "^2.3.3",
-    "prebuild": "^5.0.1",
-    "readable-stream": "^2.1.2"
+    "nan": "^2.5.1",
+    "node-gyp-build": "^3.0.0",
+    "readable-stream": "^2.2.2"
   },
   "devDependencies": {
-    "prebuild-ci": "^1.0.9",
-    "standard": "^7.0.1",
-    "tape": "^4.5.1"
+    "prebuildify": "^2.0.1",
+    "standard": "^8.6.0"
   },
   "repository": {
     "type": "git",

@@ -375,7 +375,7 @@ Local<Value> UTPWrap::NewInstance () {
   Local<Object> instance;
 
   Local<FunctionTemplate> constructorHandle = Nan::New<FunctionTemplate>(utp_constructor);
-  instance = constructorHandle->GetFunction()->NewInstance(0, NULL);
+  instance = Nan::NewInstance(constructorHandle->GetFunction()).ToLocalChecked();
 
   return scope.Escape(instance);
 }

@@ -215,7 +215,7 @@ Local<Value> SocketWrap::NewInstance () {
   Local<Object> instance;
 
   Local<FunctionTemplate> constructorHandle = Nan::New<FunctionTemplate>(socket_constructor);
-  instance = constructorHandle->GetFunction()->NewInstance(0, NULL);
+  instance = Nan::NewInstance(constructorHandle->GetFunction()).ToLocalChecked();
 
   return scope.Escape(instance);
 }
