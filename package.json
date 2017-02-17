@@ -20,7 +20,7 @@
     "readable-stream": "^2.2.2"
   },
   "devDependencies": {
-    "prebuildify": "^2.0.1",
+    "prebuildify": "^2.2.0",
     "standard": "^8.6.0",
     "tape": "^4.6.3"
   },
