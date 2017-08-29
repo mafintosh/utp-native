@@ -5,6 +5,8 @@
 
 #ifndef _WIN32
 #include <unistd.h>
+#else
+#include <stdint.h>
 #endif
 
 #if (NODE_MODULE_VERSION <= NODE_0_10_MODULE_VERSION)
@@ -189,12 +191,22 @@ on_utp_sendto (utp_callback_arguments *a) {
   struct sockaddr_in *addr = (struct sockaddr_in *) a->address;
   uv_udp_send(req, &(self->handle), &buf, 1, *addr, on_uv_send_compat);
 #else
-  uv_buf_t buf = {
-    .base = (char *) a->buf,
-    .len = a->len
-  };
+  #ifndef _WIN32
+    uv_buf_t buf = {
+      .base = (char *) a->buf,
+      .len = a->len
+    };
+    uv_udp_try_send(&(self->handle), &buf, 1, a->address);
+  #else
+    uv_buf_t buf;
 
-  uv_udp_try_send(&(self->handle), &buf, 1, a->address);
+    buf.base = (char *) a->buf;
+    buf.len = a->len;
+
+    DWORD result, bytes;
+    uv_udp_t* handlep = &(self->handle);
+    WSASendTo(handlep->socket, (WSABUF*) &buf, 1, &bytes, 0,  a->address,  sizeof(struct sockaddr), NULL, NULL);
+  #endif
 #endif
   return 0;
 }
@@ -391,10 +403,17 @@ utp_uv_send (utp_uv_t *self, uv_udp_send_t* req, char *data, size_t len, int por
   if (ret) return -1;
 #endif
 
+#ifndef _WIN32
   uv_buf_t buf = {
     .base = data,
     .len = len
   };
+#else
+  uv_buf_t buf;
+
+  buf.base = data;
+  buf.len = len;
+#endif
 
 #ifdef UV_LEGACY
   return uv_udp_send(req, handle, &buf, 1, addr, on_uv_send);
