@@ -15,6 +15,11 @@
         'src/utp_wrap.cc',
         'binding.cc',
       ],
+      'conditions': [
+        ['OS=="win"', {
+          "libraries": ["ws2_32.lib"],
+        }],
+      ],
       'xcode_settings': {
         'OTHER_CFLAGS': [
           '-O3',
