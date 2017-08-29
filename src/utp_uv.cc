@@ -196,17 +196,13 @@ on_utp_sendto (utp_callback_arguments *a) {
       .base = (char *) a->buf,
       .len = a->len
     };
-    uv_udp_try_send(&(self->handle), &buf, 1, a->address);
   #else
     uv_buf_t buf;
 
     buf.base = (char *) a->buf;
     buf.len = a->len;
-
-    DWORD result, bytes;
-    uv_udp_t* handlep = &(self->handle);
-    WSASendTo(handlep->socket, (WSABUF*) &buf, 1, &bytes, 0,  a->address,  sizeof(struct sockaddr), NULL, NULL);
   #endif
+  uv_udp_try_send(&(self->handle), &buf, 1, a->address);
 #endif
   return 0;
 }
