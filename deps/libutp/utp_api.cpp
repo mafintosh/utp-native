@@ -45,6 +45,7 @@ const char * utp_callback_names[] = {
 	"UTP_GET_RANDOM",
 	"UTP_LOG",
 	"UTP_SENDTO",
+	"UTP_SCHEDULE_ACK",
 };
 
 const char * utp_error_code_names[] = {

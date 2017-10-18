@@ -95,13 +95,13 @@ static void
 on_uv_interval_compat (uv_timer_t *req, int status) {
   on_uv_interval(req);
 }
+#endif
 
 static void
 on_uv_send_compat (uv_udp_send_t* req, int status) {
   free(req->data);
   free(req);
 }
-#endif
 
 static void
 on_uv_send (uv_udp_send_t* req, int status) {
@@ -189,12 +189,20 @@ on_utp_sendto (utp_callback_arguments *a) {
   struct sockaddr_in *addr = (struct sockaddr_in *) a->address;
   uv_udp_send(req, &(self->handle), &buf, 1, *addr, on_uv_send_compat);
 #else
-  uv_buf_t buf = {
-    .base = (char *) a->buf,
-    .len = a->len
-  };
+  uv_buf_t buf = uv_buf_init((char *) a->buf, a->len);
+  if (uv_udp_try_send(&(self->handle), &buf, 1, a->address) < 0) {
+    // fallback
+    uv_udp_send_t *req = (uv_udp_send_t *) malloc(sizeof(uv_udp_send_t));
+    if (req == NULL) return 0;
 
-  uv_udp_try_send(&(self->handle), &buf, 1, a->address);
+    char *cpy = (char *) malloc(a->len);
+    if (cpy == NULL) return 0;
+    memcpy(cpy, a->buf, a->len);
+
+    req->data = cpy;
+    uv_buf_t buf = uv_buf_init(cpy, a->len);
+    uv_udp_send(req, &(self->handle), &buf, 1, a->address, on_uv_send_compat);
+  }
 #endif
   return 0;
 }
@@ -204,6 +212,14 @@ on_utp_error (utp_callback_arguments *a) {
   utp_uv_t *self = (utp_uv_t *) utp_context_get_userdata(a->context);
   utp_socket *socket = a->socket;
   if (self->on_socket_error) self->on_socket_error(self, socket, a->error_code);
+  return 0;
+}
+
+static uint64
+on_utp_schedule_ack (utp_callback_arguments *a) {
+#ifdef _WIN32
+  utp_issue_deferred_acks(a->context);
+#endif
   return 0;
 }
 
@@ -241,7 +257,10 @@ utp_uv_init (utp_uv_t *self) {
   utp_set_callback(self->context, UTP_ON_ACCEPT, &on_utp_accept);
   utp_set_callback(self->context, UTP_SENDTO, &on_utp_sendto);
   utp_set_callback(self->context, UTP_ON_ERROR, &on_utp_error);
-
+#ifdef _WIN32
+  utp_set_callback(self->context, UTP_SCHEDULE_ACK, &on_utp_schedule_ack);
+#endif
+  
   ret = uv_timer_init(uv_default_loop(), timer);
   if (ret) return ret;
 
@@ -391,10 +410,7 @@ utp_uv_send (utp_uv_t *self, uv_udp_send_t* req, char *data, size_t len, int por
   if (ret) return -1;
 #endif
 
-  uv_buf_t buf = {
-    .base = data,
-    .len = len
-  };
+  uv_buf_t buf = uv_buf_init(data, len);
 
 #ifdef UV_LEGACY
   return uv_udp_send(req, handle, &buf, 1, addr, on_uv_send);

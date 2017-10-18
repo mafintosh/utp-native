@@ -206,3 +206,10 @@ void utp_call_sendto(utp_context *ctx, utp_socket *socket, const byte *buf, size
 	ctx->callbacks[UTP_SENDTO](&args);
 }
 
+void utp_call_schedule_ack(utp_context *ctx) {
+	utp_callback_arguments args;
+	if (!ctx->callbacks[UTP_SCHEDULE_ACK]) return;
+	args.callback_type = UTP_SCHEDULE_ACK;
+	args.context = ctx;
+	ctx->callbacks[UTP_SCHEDULE_ACK](&args);	
+}
