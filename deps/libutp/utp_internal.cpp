@@ -708,6 +708,7 @@ void UTPSocket::schedule_ack()
 		log(UTP_LOG_DEBUG, "schedule_ack");
 		#endif
 		ida = ctx->ack_sockets.Append(this);
+		utp_call_schedule_ack(ctx);
 	} else {
 		#if UTP_DEBUG_LOGGING
 		log(UTP_LOG_DEBUG, "schedule_ack: already in list");

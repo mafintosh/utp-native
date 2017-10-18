@@ -215,6 +215,14 @@ on_utp_error (utp_callback_arguments *a) {
   return 0;
 }
 
+static uint64
+on_utp_schedule_ack (utp_callback_arguments *a) {
+#ifdef _WIN32
+  utp_issue_deferred_acks(a->context);
+#endif
+  return 0;
+}
+
 int
 utp_uv_init (utp_uv_t *self) {
   int ret;
@@ -249,7 +257,10 @@ utp_uv_init (utp_uv_t *self) {
   utp_set_callback(self->context, UTP_ON_ACCEPT, &on_utp_accept);
   utp_set_callback(self->context, UTP_SENDTO, &on_utp_sendto);
   utp_set_callback(self->context, UTP_ON_ERROR, &on_utp_error);
-
+#ifdef _WIN32
+  utp_set_callback(self->context, UTP_SCHEDULE_ACK, &on_utp_schedule_ack);
+#endif
+  
   ret = uv_timer_init(uv_default_loop(), timer);
   if (ret) return ret;
 

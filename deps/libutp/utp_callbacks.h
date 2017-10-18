@@ -43,5 +43,6 @@ uint32 utp_call_get_random(utp_context *ctx, utp_socket *s);
 size_t utp_call_get_read_buffer_size(utp_context *ctx, utp_socket *s);
 void utp_call_log(utp_context *ctx, utp_socket *s, const byte *buf);
 void utp_call_sendto(utp_context *ctx, utp_socket *s, const byte *buf, size_t len, const struct sockaddr *address, socklen_t address_len, uint32 flags);
+void utp_call_schedule_ack(utp_context *ctx);
 
 #endif // __UTP_CALLBACKS_H__

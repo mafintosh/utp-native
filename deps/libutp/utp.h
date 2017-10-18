@@ -82,6 +82,7 @@ enum {
 	UTP_GET_RANDOM,
 	UTP_LOG,
 	UTP_SENDTO,
+	UTP_SCHEDULE_ACK,
 
 	// context and socket options that may be set/queried
     UTP_LOG_NORMAL,
