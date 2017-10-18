@@ -95,13 +95,13 @@ static void
 on_uv_interval_compat (uv_timer_t *req, int status) {
   on_uv_interval(req);
 }
+#endif
 
 static void
 on_uv_send_compat (uv_udp_send_t* req, int status) {
   free(req->data);
   free(req);
 }
-#endif
 
 static void
 on_uv_send (uv_udp_send_t* req, int status) {
@@ -190,7 +190,19 @@ on_utp_sendto (utp_callback_arguments *a) {
   uv_udp_send(req, &(self->handle), &buf, 1, *addr, on_uv_send_compat);
 #else
   uv_buf_t buf = uv_buf_init((char *) a->buf, a->len);
-  uv_udp_try_send(&(self->handle), &buf, 1, a->address);
+  if (uv_udp_try_send(&(self->handle), &buf, 1, a->address) < 0) {
+    // fallback
+    uv_udp_send_t *req = (uv_udp_send_t *) malloc(sizeof(uv_udp_send_t));
+    if (req == NULL) return 0;
+
+    char *cpy = (char *) malloc(a->len);
+    if (cpy == NULL) return 0;
+    memcpy(cpy, a->buf, a->len);
+
+    req->data = cpy;
+    uv_buf_t buf = uv_buf_init(cpy, a->len);
+    uv_udp_send(req, &(self->handle), &buf, 1, a->address, on_uv_send_compat);
+  }
 #endif
   return 0;
 }
