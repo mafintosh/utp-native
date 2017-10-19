@@ -64,8 +64,10 @@
 	#endif
 #endif
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(_SSIZE_T_) && !defined(_SSIZE_T_DEFINED)
 	#include <BaseTsd.h>
+	#define _SSIZE_T_
+	#define _SSIZE_T_DEFINED
 	typedef SSIZE_T ssize_t;
 #endif
 
