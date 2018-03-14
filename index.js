@@ -329,6 +329,10 @@ Connection.prototype.unref = function () {
 }
 
 Connection.prototype.address = function () {
+  if (this._socket) {
+    var addr = this._socket.address()
+    if (addr) return addr
+  }
   return this._utp && this._utp.address()
 }
 

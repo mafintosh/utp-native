@@ -156,6 +156,30 @@ NAN_METHOD(SocketWrap::Writev) {
   else info.GetReturnValue().Set(Nan::False());
 }
 
+NAN_METHOD(SocketWrap::Address) {
+  Nan::EscapableHandleScope scope;
+
+  SocketWrap *self = Nan::ObjectWrap::Unwrap<SocketWrap>(info.This());
+  utp_socket *socket = self->socket;
+  int ret;
+
+  Local<Object> result = Nan::New<Object>();
+
+  char ip[17];
+  int port;
+
+  ret = utp_uv_address(NULL, socket, &port, (char *) &ip);
+  if (ret) {
+    Nan::ThrowError("Could not get address");
+    return;
+  }
+
+  Nan::Set(result, Nan::New<String>("address").ToLocalChecked(), Nan::New<String>(ip).ToLocalChecked());
+  Nan::Set(result, Nan::New<String>("port").ToLocalChecked(), Nan::New<Number>(port));
+
+  info.GetReturnValue().Set(scope.Escape(result));
+}
+
 NAN_METHOD(SocketWrap::End) {
   SocketWrap *self = Nan::ObjectWrap::Unwrap<SocketWrap>(info.This());
   utp_uv_socket_end(self->handle, self->socket);
@@ -200,6 +224,7 @@ void SocketWrap::Init () {
   Nan::SetPrototypeMethod(tpl, "context", SocketWrap::Context);
   Nan::SetPrototypeMethod(tpl, "write", SocketWrap::Write);
   Nan::SetPrototypeMethod(tpl, "writev", SocketWrap::Writev);
+  Nan::SetPrototypeMethod(tpl, "address", SocketWrap::Address);
   Nan::SetPrototypeMethod(tpl, "end", SocketWrap::End);
   Nan::SetPrototypeMethod(tpl, "ondata", SocketWrap::OnData);
   Nan::SetPrototypeMethod(tpl, "onend", SocketWrap::OnEnd);
