@@ -6,8 +6,6 @@ var utp = require('node-gyp-build')(__dirname)
 var net = require('net')
 var dns = require('dns')
 
-console.log('USING LINKED')
-
 var UTP_ERRORS = [
   'UTP_ECONNREFUSED',
   'UTP_ECONNRESET',
