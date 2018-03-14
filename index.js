@@ -292,7 +292,7 @@ Connection.prototype._onsocket = function (socket) {
   socket.onerror(this._onerror)
   socket.onconnect(this._onconnect)
 
-  var address = socket.address()
+  var address = socket.remoteAddress()
   this.remoteAddress = address.address
   this.remotePort = address.port
 

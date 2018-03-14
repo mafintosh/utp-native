@@ -41,7 +41,7 @@ private:
   static NAN_METHOD(End);
   static NAN_METHOD(Write);
   static NAN_METHOD(Writev);
-  static NAN_METHOD(Address);
+  static NAN_METHOD(RemoteAddress);
   static NAN_METHOD(OnData);
   static NAN_METHOD(OnEnd);
   static NAN_METHOD(OnError);

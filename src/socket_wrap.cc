@@ -156,7 +156,7 @@ NAN_METHOD(SocketWrap::Writev) {
   else info.GetReturnValue().Set(Nan::False());
 }
 
-NAN_METHOD(SocketWrap::Address) {
+NAN_METHOD(SocketWrap::RemoteAddress) {
   Nan::EscapableHandleScope scope;
 
   SocketWrap *self = Nan::ObjectWrap::Unwrap<SocketWrap>(info.This());
@@ -224,7 +224,7 @@ void SocketWrap::Init () {
   Nan::SetPrototypeMethod(tpl, "context", SocketWrap::Context);
   Nan::SetPrototypeMethod(tpl, "write", SocketWrap::Write);
   Nan::SetPrototypeMethod(tpl, "writev", SocketWrap::Writev);
-  Nan::SetPrototypeMethod(tpl, "address", SocketWrap::Address);
+  Nan::SetPrototypeMethod(tpl, "remoteAddress", SocketWrap::RemoteAddress);
   Nan::SetPrototypeMethod(tpl, "end", SocketWrap::End);
   Nan::SetPrototypeMethod(tpl, "ondata", SocketWrap::OnData);
   Nan::SetPrototypeMethod(tpl, "onend", SocketWrap::OnEnd);
