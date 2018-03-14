@@ -92,6 +92,14 @@ The client connection is a duplex stream that you can write / read from.
 
 Similar to `server.address`.
 
+#### `connection.remoteAddress`
+
+The address of the remote peer.
+
+#### `connection.remotePort`
+
+The port of the remote peer.
+
 #### `connection.ref()`
 
 Similar to `server.ref()`

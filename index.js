@@ -222,6 +222,9 @@ UTP.prototype.close = function (cb) {
 function Connection (utp, socket) {
   stream.Duplex.call(this)
 
+  this.remoteAddress = ''
+  this.remotePort = 0
+
   this._utp = utp
   this._socket = null
   this._index = this._utp.connections.push(this) - 1
@@ -288,6 +291,10 @@ Connection.prototype._onsocket = function (socket) {
   socket.onclose(this._onclose)
   socket.onerror(this._onerror)
   socket.onconnect(this._onconnect)
+
+  var address = socket.remoteAddress()
+  this.remoteAddress = address.address
+  this.remotePort = address.port
 
   this.emit('resolve')
 }

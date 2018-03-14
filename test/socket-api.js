@@ -81,6 +81,8 @@ tape('combine server and connection', function (t) {
 
   socket.on('connection', function (client) {
     gotClient = true
+    t.same(client.remotePort, socket.address().port)
+    t.same(client.remoteAddress, '127.0.0.1')
     client.pipe(client)
   })
 
