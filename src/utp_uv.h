@@ -73,7 +73,10 @@ int
 utp_uv_bind (utp_uv_t *self, int port, char *ip);
 
 int
-utp_uv_address (utp_uv_t *self, utp_socket *conn, int *port, char *ip);
+utp_uv_address (utp_uv_t *self, int *port, char *ip);
+
+int
+utp_uv_remote_address (utp_socket *conn, int *port, char *ip);
 
 int
 utp_uv_send (utp_uv_t *self, uv_udp_send_t* req, char *data, size_t len, int port, char *ip);

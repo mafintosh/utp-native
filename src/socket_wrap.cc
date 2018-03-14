@@ -168,7 +168,7 @@ NAN_METHOD(SocketWrap::Address) {
   char ip[17];
   int port;
 
-  ret = utp_uv_address(NULL, socket, &port, (char *) &ip);
+  ret = utp_uv_remote_address(socket, &port, (char *) &ip);
   if (ret) {
     Nan::ThrowError("Could not get address");
     return;

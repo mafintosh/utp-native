@@ -231,7 +231,7 @@ NAN_METHOD(UTPWrap::Address) {
   char ip[17];
   int port;
 
-  ret = utp_uv_address(handle, NULL, &port, (char *) &ip);
+  ret = utp_uv_address(handle, &port, (char *) &ip);
   if (ret) {
     Nan::ThrowError("Could not get address");
     return;

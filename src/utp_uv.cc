@@ -346,21 +346,30 @@ utp_uv_bind (utp_uv_t *self, int port, char *ip) {
 }
 
 int
-utp_uv_address (utp_uv_t *self, utp_socket *conn, int *port, char *ip) {
+utp_uv_address (utp_uv_t *self, int *port, char *ip) {
   int ret;
   struct sockaddr name;
   int name_len = sizeof(name);
 
-  if (conn) {
-    // try the utp api
-    ret = utp_getpeername(conn, &name, (socklen_t *)&name_len);
-  }
-  if (self && (!conn || ret)) {
-    // try the udp api
-    uv_udp_t *handle = &(self->handle);
-    ret = uv_udp_getsockname(handle, &name, &name_len);
-  }
-  if (ret) return ret; // no success
+  uv_udp_t *handle = &(self->handle);
+  ret = uv_udp_getsockname(handle, &name, &name_len);
+  if (ret) return ret;
+
+  struct sockaddr_in *name_in = (struct sockaddr_in *) &name;
+  *port = ntohs(name_in->sin_port);
+  if (ip != NULL) uv_ip4_name(name_in, ip, 17);
+
+  return 0;
+}
+
+int
+utp_uv_remote_address (utp_socket *conn, int *port, char *ip) {
+  int ret;
+  struct sockaddr name;
+  socklen_t name_len = sizeof(name);
+
+  ret = utp_getpeername(conn, &name, &name_len);
+  if (ret) return ret;
 
   struct sockaddr_in *name_in = (struct sockaddr_in *) &name;
   *port = ntohs(name_in->sin_port);
