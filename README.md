@@ -122,6 +122,10 @@ Forcefully destroys the connection.
 
 In addition to this the connection has all the classic stream methods such as `.write` etc.
 
+Note that utp requires the first data message to be sent from the client in a client/server scenario.
+In most cases this is what happens anyway but something to be aware of. This module will cork the server stream until it
+receives a client message because of that.
+
 ## Socket API
 
 The socket api allows you to reuse the same underlying UDP socket to both connect to other clients on accept incoming connections. It also mimicks the node core [dgram socket](https://nodejs.org/api/dgram.html#dgram_class_dgram_socket) api.
