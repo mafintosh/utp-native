@@ -1,6 +1,6 @@
 var events = require('events')
 var util = require('util')
-var timers = require('timers')
+var timers = require('./timers')
 var stream = require('readable-stream')
 var utp = require('node-gyp-build')(__dirname)
 var net = require('net')
@@ -13,9 +13,9 @@ var UTP_ERRORS = [
 ]
 
 var IPV4_ONLY = new Error('Only IPv4 is supported currently. Open an issue for IPv6 support')
-var unenroll = timers.unenroll || noop
-var active = timers._unrefActive || timers.active || noop
-var enroll = timers.enroll || noop
+var unenroll = timers.unenroll
+var active = timers.active
+var enroll = timers.enroll
 
 module.exports = UTP
 
@@ -239,6 +239,7 @@ function Connection (utp, socket) {
   this._idleNext = null
   this._idlePrev = null
   this._idleStart = 0
+  this._timeout = null
   this._called = false
 
   this.destroyed = false
