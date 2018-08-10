@@ -4,8 +4,7 @@
   # },
   'target_defaults': {
     'defines': [
-      'POSIX',
-      'UTP_DEBUG_LOGGING'
+      'POSIX'
     ],
   },
   'targets': [
