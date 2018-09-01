@@ -497,10 +497,9 @@ NAPI_METHOD(utp_napi_send) {
 
   uv_udp_send_t *req = &(send_req->req);
 
-  const uv_buf_t bufs = {
-    .base = buf + offset,
-    .len = len
-  };
+  uv_buf_t bufs = {};
+  bufs.base = buf + offset;
+  bufs.len = len;
 
   struct sockaddr_in addr;
   int err;
