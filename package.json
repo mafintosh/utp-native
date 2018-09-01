@@ -1,32 +1,40 @@
 {
-  "name": "utp-napi",
-  "version": "0.0.0",
-  "description": "utp native backed by n-api",
+  "name": "utp-native",
+  "version": "1.7.3",
+  "description": "Native bindings for libutp",
   "main": "index.js",
+  "gypfile": true,
   "scripts": {
+    "test-timeouts": "tape test/timeouts.js",
     "test": "standard && tape test/net.js test/sockets.js",
     "install": "node-gyp-build",
-    "fetch-libutp": "git submodule update --recursive --init"
+    "fetch-libutp": "git submodule update --recursive --init",
+    "prebuild": "npm run fetch-libutp && prebuildify --all --strip",
+    "prebuild-ia32": "npm run fetch-libutp && prebuildify --all --strip --arch=ia32"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/mafintosh/utp-napi.git"
+  "bin": {
+    "ucat": "./ucat.js"
   },
-  "author": "Mathias Buus (@mafintosh)",
-  "license": "MIT",
-  "gypfile": true,
-  "bugs": {
-    "url": "https://github.com/mafintosh/utp-napi/issues"
-  },
-  "homepage": "https://github.com/mafintosh/utp-napi#readme",
   "dependencies": {
     "napi-macros": "^1.8.1",
     "node-gyp-build": "^3.4.0",
+    "readable-stream": "^3.0.2",
     "timeout-refresh": "^1.0.0",
     "unordered-set": "^2.0.1"
   },
   "devDependencies": {
+    "prebuildify": "^2.7.0",
     "standard": "^11.0.1",
     "tape": "^4.9.1"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mafintosh/utp-native.git"
+  },
+  "author": "Mathias Buus (@mafintosh)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mafintosh/utp-napi/issues"
+  },
+  "homepage": "https://github.com/mafintosh/utp-napi#readme"
 }

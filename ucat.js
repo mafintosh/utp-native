@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const socket = require('./')()
+const socket = require('./')({allowHalfOpen: false})
 var host = null
 var port = 0
 
@@ -26,4 +26,13 @@ if (process.argv.indexOf('-l') > -1) {
 
 function onconnection (connection) {
   process.stdin.pipe(connection).pipe(process.stdout)
+  connection.on('end', function () {
+    process.exit()
+  })
+  connection.on('close', function () {
+    process.exit()
+  })
+  process.once('SIGINT', function () {
+    connection.end()
+  })
 }
