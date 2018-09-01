@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
-var socket = require('./')()
+const socket = require('./')()
 var host = null
 var port = 0
 
 for (var i = 2; i < process.argv.length; i++) {
   if (process.argv[i][0] !== '-') {
-    var parts = process.argv[i].split(':')
+    const parts = process.argv[i].split(':')
     port = Number(parts.pop()) || 0
     host = parts.pop()
   }

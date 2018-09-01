@@ -1,12 +1,13 @@
-var tape = require('tape')
-var utp = require('../index.js')
+const tape = require('tape')
+const utp = require('../')
 
 tape('server + connect', function (t) {
   var connected = false
 
-  var server = utp.createServer(function (socket) {
+  const server = utp.createServer(function (socket) {
     connected = true
     socket.write('hello mike')
+    socket.end()
   })
 
   server.listen(function () {
@@ -26,13 +27,14 @@ tape('server + connect', function (t) {
 tape('server + connect with resolve', function (t) {
   var connected = false
 
-  var server = utp.createServer(function (socket) {
+  const server = utp.createServer(function (socket) {
     connected = true
     socket.write('hello mike')
+    socket.end()
   })
 
   server.listen(function () {
-    var socket = utp.connect(server.address().port, 'localhost')
+    const socket = utp.connect(server.address().port, 'localhost')
 
     socket.on('connect', function () {
       socket.destroy()
@@ -48,7 +50,7 @@ tape('server + connect with resolve', function (t) {
 tape('bad resolve', function (t) {
   t.plan(2)
 
-  var socket = utp.connect(10000, 'domain.does-not-exist')
+  const socket = utp.connect(10000, 'domain.does-not-exist')
 
   socket.on('connect', function () {
     t.fail('should not connect')
@@ -65,12 +67,13 @@ tape('bad resolve', function (t) {
 })
 
 tape('server immediate close', function (t) {
-  var server = utp.createServer(function (socket) {
+  t.plan(2)
+
+  const server = utp.createServer(function (socket) {
     socket.write('hi')
     socket.end()
     server.close(function () {
       t.pass('closed')
-      t.end()
     })
   })
 
@@ -83,6 +86,7 @@ tape('server immediate close', function (t) {
     })
 
     socket.on('close', function () {
+      t.pass('client closed')
     })
   })
 })
@@ -101,7 +105,7 @@ tape.skip('only server sends', function (t) {
     var socket = utp.connect(server.address().port)
 
     socket.on('data', function (data) {
-      t.same(data, Buffer('hi'))
+      t.same(data, Buffer.from('hi'))
       socket.destroy()
       server.close()
     })
@@ -115,9 +119,9 @@ tape('server listens on a port in use', function (t) {
     return
   }
 
-  var server = utp.createServer()
+  const server = utp.createServer()
   server.listen(0, function () {
-    var server2 = utp.createServer()
+    const server2 = utp.createServer()
     server2.listen(server.address().port, function () {
       t.fail('should not be listening')
     })
@@ -131,21 +135,24 @@ tape('server listens on a port in use', function (t) {
 })
 
 tape('echo server', function (t) {
-  var server = utp.createServer(function (socket) {
+  const server = utp.createServer(function (socket) {
     socket.pipe(socket)
     socket.on('data', function (data) {
-      t.same(data, Buffer('hello'))
+      t.same(data, Buffer.from('hello'))
+    })
+    socket.on('end', function () {
+      socket.end()
     })
   })
 
   server.listen(0, function () {
-    var socket = utp.connect(server.address().port)
+    const socket = utp.connect(server.address().port)
 
     socket.write('hello')
     socket.on('data', function (data) {
-      socket.destroy()
+      socket.end()
       server.close()
-      t.same(data, Buffer('hello'))
+      t.same(data, Buffer.from('hello'))
       t.end()
     })
   })
@@ -153,50 +160,96 @@ tape('echo server', function (t) {
 
 tape('echo server back and fourth', function (t) {
   var echoed = 0
-  var server = utp.createServer(function (socket) {
+
+  const server = utp.createServer(function (socket) {
     socket.pipe(socket)
     socket.on('data', function (data) {
       echoed++
-      t.same(data, Buffer('hello'))
+      t.same(data, Buffer.from('hello'))
     })
   })
 
   server.listen(0, function () {
-    var socket = utp.connect(server.address().port)
+    const socket = utp.connect(server.address().port)
+
     var rounds = 10
 
     socket.write('hello')
     socket.on('data', function (data) {
       if (--rounds) return socket.write(data)
-      socket.destroy()
+      socket.end()
       server.close()
       t.same(echoed, 10)
-      t.same(Buffer(data), data)
+      t.same(Buffer.from('hello'), data)
       t.end()
     })
   })
 })
 
 tape('echo big message', function (t) {
-  var big = Buffer(4 * 1024 * 1024)
+  var packets = 0
+
+  const big = Buffer.alloc(8 * 1024 * 1024)
   big.fill('yolo')
-  var server = utp.createServer(function (socket) {
+
+  const server = utp.createServer(function (socket) {
+    socket.on('data', () => packets++)
     socket.pipe(socket)
   })
 
   server.listen(0, function () {
-    var socket = utp.connect(server.address().port)
-    var buffer = Buffer(big.length)
+    const then = Date.now()
+    const socket = utp.connect(server.address().port)
+    const buffer = Buffer.alloc(big.length)
+
     var ptr = 0
 
     socket.write(big)
     socket.on('data', function (data) {
+      packets++
       data.copy(buffer, ptr)
       ptr += data.length
       if (big.length === ptr) {
-        socket.destroy()
+        socket.end()
         server.close()
         t.same(buffer, big)
+        t.pass('echo took ' + (Date.now() - then) + 'ms (' + packets + ' packets)')
+        t.end()
+      }
+    })
+  })
+})
+
+tape('echo big message with setContentSize', function (t) {
+  var packets = 0
+
+  const big = Buffer.alloc(8 * 1024 * 1024)
+  big.fill('yolo')
+
+  const server = utp.createServer(function (socket) {
+    socket.setContentSize(big.length)
+    socket.on('data', () => packets++)
+    socket.pipe(socket)
+  })
+
+  server.listen(0, function () {
+    const then = Date.now()
+    const socket = utp.connect(server.address().port)
+    const buffer = Buffer.alloc(big.length)
+
+    var ptr = 0
+
+    socket.setContentSize(big.length)
+    socket.write(big)
+    socket.on('data', function (data) {
+      packets++
+      data.copy(buffer, ptr)
+      ptr += data.length
+      if (big.length === ptr) {
+        socket.end()
+        server.close()
+        t.same(buffer, big)
+        t.pass('echo took ' + (Date.now() - then) + 'ms (' + packets + ' packets)')
         t.end()
       }
     })
@@ -208,33 +261,33 @@ tape('two connections', function (t) {
   var gotA = false
   var gotB = false
 
-  var server = utp.createServer(function (socket) {
+  const server = utp.createServer(function (socket) {
     count++
     socket.pipe(socket)
   })
 
   server.listen(0, function () {
-    var socket1 = utp.connect(server.address().port)
-    var socket2 = utp.connect(server.address().port)
+    const socket1 = utp.connect(server.address().port)
+    const socket2 = utp.connect(server.address().port)
 
     socket1.write('a')
     socket2.write('b')
 
     socket1.on('data', function (data) {
       gotA = true
-      t.same(data, Buffer('a'))
+      t.same(data, Buffer.from('a'))
       if (gotB) done()
     })
 
     socket2.on('data', function (data) {
       gotB = true
-      t.same(data, Buffer('b'))
+      t.same(data, Buffer.from('b'))
       if (gotA) done()
     })
 
     function done () {
-      socket1.destroy()
-      socket2.destroy()
+      socket1.end()
+      socket2.end()
       server.close()
       t.ok(gotA)
       t.ok(gotB)
@@ -248,7 +301,11 @@ tape('emits close', function (t) {
   var serverClosed = false
   var clientClosed = false
 
-  var server = utp.createServer(function (socket) {
+  const server = utp.createServer(function (socket) {
+    socket.resume()
+    socket.on('end', function () {
+      socket.end()
+    })
     socket.on('close', function () {
       serverClosed = true
       if (clientClosed) done()
@@ -256,9 +313,10 @@ tape('emits close', function (t) {
   })
 
   server.listen(0, function () {
-    var socket = utp.connect(server.address().port)
+    const socket = utp.connect(server.address().port)
     socket.write('hi')
     socket.end() // utp does not support half open
+    socket.resume()
     socket.on('close', function () {
       clientClosed = true
       if (serverClosed) done()
@@ -275,7 +333,7 @@ tape('emits close', function (t) {
 
 tape('flushes', function (t) {
   var sent = ''
-  var server = utp.createServer(function (socket) {
+  const server = utp.createServer(function (socket) {
     var buf = ''
     socket.setEncoding('utf-8')
     socket.on('data', function (data) {
@@ -283,13 +341,14 @@ tape('flushes', function (t) {
     })
     socket.on('end', function () {
       server.close()
+      socket.end()
       t.same(buf, sent)
       t.end()
     })
   })
 
   server.listen(0, function () {
-    var socket = utp.connect(server.address().port)
+    const socket = utp.connect(server.address().port)
     for (var i = 0; i < 50; i++) {
       socket.write(i + '\n')
       sent += i + '\n'
@@ -300,13 +359,14 @@ tape('flushes', function (t) {
 
 tape('close waits for connections to close', function (t) {
   var sent = ''
-  var server = utp.createServer(function (socket) {
+  const server = utp.createServer(function (socket) {
     var buf = ''
     socket.setEncoding('utf-8')
     socket.on('data', function (data) {
       buf += data
     })
     socket.on('end', function () {
+      socket.end()
       t.same(buf, sent)
       t.end()
     })
@@ -314,7 +374,7 @@ tape('close waits for connections to close', function (t) {
   })
 
   server.listen(0, function () {
-    var socket = utp.connect(server.address().port)
+    const socket = utp.connect(server.address().port)
     for (var i = 0; i < 50; i++) {
       socket.write(i + '\n')
       sent += i + '\n'
@@ -323,13 +383,40 @@ tape('close waits for connections to close', function (t) {
   })
 })
 
+tape('disable half open', function (t) {
+  t.plan(2)
+  const server = utp.createServer({ allowHalfOpen: false }, function (socket) {
+    socket.on('data', function (data) {
+      t.same(data, Buffer.from('a'))
+    })
+    socket.on('close', function () {
+      server.close(function () {
+        t.pass('everything closed')
+      })
+    })
+  })
+
+  server.listen(0, function () {
+    const socket = utp.connect(server.address().port, '127.0.0.1', {allowHalfOpen: true})
+
+    socket.write('a')
+    socket.end()
+  })
+})
+
 tape('timeout', function (t) {
+  t.plan(3)
+
   var serverClosed = false
   var clientClosed = false
   var missing = 2
 
-  var server = utp.createServer(function (socket) {
-    socket.setTimeout(100, socket.destroy)
+  const server = utp.createServer(function (socket) {
+    socket.setTimeout(100, function () {
+      t.pass('timed out')
+      socket.destroy()
+    })
+    socket.resume()
     socket.write('hi')
     socket.on('close', function () {
       serverClosed = true
@@ -338,8 +425,12 @@ tape('timeout', function (t) {
   })
 
   server.listen(0, function () {
-    var socket = utp.connect(server.address().port)
+    const socket = utp.connect(server.address().port)
     socket.write('hi')
+    socket.resume()
+    socket.on('end', function () {
+      socket.destroy()
+    })
     socket.on('close', function () {
       clientClosed = true
       done()

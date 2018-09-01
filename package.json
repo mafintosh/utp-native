@@ -1,37 +1,32 @@
 {
-  "name": "utp-native",
-  "version": "1.7.3",
-  "description": "Native bindings for libutp",
+  "name": "utp-napi",
+  "version": "0.0.0",
+  "description": "utp native backed by n-api",
   "main": "index.js",
-  "gypfile": true,
   "scripts": {
-    "test-timeouts": "tape test/timeouts.js",
-    "test": "standard && tape test/socket-api.js test/net-api.js",
-    "prebuild": "prebuildify --all --strip",
-    "prebuild-ia32": "prebuildify --all --strip --arch=ia32",
-    "install": "node-gyp-build"
-  },
-  "bin": {
-    "ucat": "./ucat.js"
-  },
-  "dependencies": {
-    "nan": "^2.5.1",
-    "node-gyp-build": "^3.0.0",
-    "readable-stream": "^2.2.2"
-  },
-  "devDependencies": {
-    "prebuildify": "^2.2.0",
-    "standard": "^8.6.0",
-    "tape": "^4.6.3"
+    "test": "standard && tape test/net.js test/sockets.js",
+    "install": "node-gyp-build",
+    "fetch-libutp": "git submodule update --recursive --init"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/mafintosh/utp-native.git"
+    "url": "git+https://github.com/mafintosh/utp-napi.git"
   },
   "author": "Mathias Buus (@mafintosh)",
   "license": "MIT",
+  "gypfile": true,
   "bugs": {
-    "url": "https://github.com/mafintosh/utp-native/issues"
+    "url": "https://github.com/mafintosh/utp-napi/issues"
   },
-  "homepage": "https://github.com/mafintosh/utp-native"
+  "homepage": "https://github.com/mafintosh/utp-napi#readme",
+  "dependencies": {
+    "napi-macros": "^1.8.1",
+    "node-gyp-build": "^3.4.0",
+    "timeout-refresh": "^1.0.0",
+    "unordered-set": "^2.0.1"
+  },
+  "devDependencies": {
+    "standard": "^11.0.1",
+    "tape": "^4.9.1"
+  }
 }
