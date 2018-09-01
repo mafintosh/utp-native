@@ -1,6 +1,6 @@
 {
   "targets": [{
-    "target_name": "utp_napi",
+    "target_name": "utp_native",
     'dependencies': [
       'deps/libutp.gyp:libutp',
     ],

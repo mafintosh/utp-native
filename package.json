@@ -34,7 +34,7 @@
   "author": "Mathias Buus (@mafintosh)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/mafintosh/utp-napi/issues"
+    "url": "https://github.com/mafintosh/utp-native/issues"
   },
-  "homepage": "https://github.com/mafintosh/utp-napi#readme"
+  "homepage": "https://github.com/mafintosh/utp-native#readme"
 }
