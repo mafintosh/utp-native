@@ -9,8 +9,8 @@
     "test": "standard && tape test/net.js test/sockets.js",
     "install": "node-gyp-build",
     "fetch-libutp": "git submodule update --recursive --init",
-    "prebuild": "prebuildify --all --strip",
-    "prebuild-ia32": "prebuildify --all --strip --arch=ia32"
+    "prebuild": "prebuildify --napi --strip",
+    "prebuild-ia32": "prebuildify --napi --strip --arch=ia32"
   },
   "bin": {
     "ucat": "./ucat.js"
