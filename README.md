@@ -7,7 +7,7 @@ npm install utp-native
 ```
 
 [![build status](https://travis-ci.org/mafintosh/utp-native.svg?branch=master)](https://travis-ci.org/mafintosh/utp-native)
-[![build status](https://ci.appveyor.com/api/projects/status/mflwybd36fnkq8vu/branch/master?svg=true)](https://ci.appveyor.com/project/mafintosh/utp-native/branch/master)
+[![Build status](https://ci.appveyor.com/api/projects/status/d3f8urgxn8j4nymh/branch/master?svg=true)](https://ci.appveyor.com/project/mafintosh/utp-native/branch/master)
 [![js-standard-style](https://img.shields.io/badge/code%20style-standard-brightgreen.svg?style=flat)](https://github.com/feross/standard)
 
 ## Usage
