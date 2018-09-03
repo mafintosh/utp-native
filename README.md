@@ -13,18 +13,23 @@ npm install utp-native
 ## Usage
 
 ``` js
-var utp = require('utp-native')
+const utp = require('utp-native')
 
-var server = utp.createServer(function (socket) {
+const server = utp.createServer(function (socket) {
   socket.pipe(socket) // echo server
 })
 
 server.listen(10000, function () {
-  var socket = utp.connect(10000)
+  const socket = utp.connect(10000)
 
   socket.write('hello world')
+  socket.end()
+
   socket.on('data', function (data) {
     console.log('echo: ' + data)
+  })
+  socket.on('end', function () {
+    console.log('echo: (ended)')
   })
 })
 ```
@@ -35,15 +40,23 @@ There two APIs available. One that mimicks the net core module in Node as much a
 
 ## [net](http://nodejs.org/api/net.html)-like API
 
-#### `server = utp.createServer([onconnection])`
+#### `server = utp.createServer([options], [onconnection])`
 
 Create a new utp server instance.
+
+Options include
+
+```js
+{
+  allowHalfOpen: true // set to false to disallow half open connections
+}
+```
 
 #### `server.listen([port], [address], [onlistening])`
 
 Listen for on port. If you don't provide a port or pass in `0` a free port will be used. Optionally you can provide an interface address as well, defaults to `0.0.0.0`.
 
-#### `var addr = server.address()`
+#### `addr = server.address()`
 
 Returns an address object, `{port, address}` that tell you which port / address this server is bound to.
 
@@ -83,10 +96,18 @@ Opposite of unref.
 
 Unreferences the server from the node event loop.
 
-#### `connection = utp.connect(port, [host])`
+#### `connection = utp.connect(port, [host], [options])`
 
 Create a new client connection. host defaults to localhost.
 The client connection is a duplex stream that you can write / read from.
+
+Options include:
+
+```js
+{
+  allowHalfOpen: true // set to false to disallow half open connections
+}
+```
 
 #### `address = connection.address()`
 
@@ -100,13 +121,25 @@ The address of the remote peer.
 
 The port of the remote peer.
 
-#### `connection.ref()`
+#### `connection.setInteractive(interactive)`
 
-Similar to `server.ref()`
+If you don't need every packet as soon as they arrive
+set `connection.setInteractive(false)`.
 
-#### `connection.unref()`
+This might greatly improve performance
 
-Similar to `server.unref()`
+#### `connection.setContentSize(size)`
+
+Set the expected content size. This will make utp-native
+buffer larger chunks of data until `size` bytes have been read.
+
+This might greatly improve performance
+
+#### `connection.setTimeout(ms, [ontimeout])`
+
+Set a continuous timeout. If no packets have been received within `ms`
+a timeout event is triggered. Up to you to listen for this event and
+potentially destroy the socket. All timeouts are cancelled on socket end.
 
 #### `connection.on('close')`
 
@@ -130,9 +163,17 @@ receives a client message because of that.
 
 The socket api allows you to reuse the same underlying UDP socket to both connect to other clients on accept incoming connections. It also mimicks the node core [dgram socket](https://nodejs.org/api/dgram.html#dgram_class_dgram_socket) api.
 
-#### `socket = utp()`
+#### `socket = utp([options])`
 
-Create a new utp socket
+Create a new utp socket.
+
+Options include:
+
+```js
+{
+  allowHalfOpen: true // set to false to disallow half open connections
+}
+```
 
 #### `socket.bind([port], [host], [onlistening])`
 

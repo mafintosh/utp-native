@@ -1,25 +1,25 @@
-var tape = require('tape')
-var dgram = require('dgram')
-var utp = require('../')
+const tape = require('tape')
+const dgram = require('dgram')
+const utp = require('../')
 
 tape('dgram-like socket', function (t) {
-  var socket = utp()
+  const socket = utp()
 
   socket.on('message', function (buf, rinfo) {
     t.same(rinfo.port, socket.address().port)
     t.same(rinfo.address, '127.0.0.1')
-    t.same(buf, Buffer('hello'))
+    t.same(buf, Buffer.from('hello'))
     socket.close()
     t.end()
   })
 
   socket.bind(function () {
-    socket.send(Buffer('hello'), 0, 5, socket.address().port, '127.0.0.1')
+    socket.send(Buffer.from('hello'), 0, 5, socket.address().port, '127.0.0.1')
   })
 })
 
 tape('double close', function (t) {
-  var socket = utp()
+  const socket = utp()
 
   socket.on('close', function () {
     socket.close(function () {
@@ -34,7 +34,7 @@ tape('double close', function (t) {
 })
 
 tape('echo socket', function (t) {
-  var socket = utp()
+  const socket = utp()
 
   socket.on('message', function (buf, rinfo) {
     socket.send(buf, 0, buf.length, rinfo.port, rinfo.address)
@@ -45,38 +45,38 @@ tape('echo socket', function (t) {
     other.on('message', function (buf, rinfo) {
       t.same(rinfo.port, socket.address().port)
       t.same(rinfo.address, '127.0.0.1')
-      t.same(buf, Buffer('hello'))
+      t.same(buf, Buffer.from('hello'))
       socket.close()
       other.close()
       t.end()
     })
-    other.send(Buffer('hello'), 0, 5, socket.address().port, '127.0.0.1')
+    other.send(Buffer.from('hello'), 0, 5, socket.address().port, '127.0.0.1')
   })
 })
 
 tape('echo socket with resolve', function (t) {
-  var socket = utp()
+  const socket = utp()
 
   socket.on('message', function (buf, rinfo) {
     socket.send(buf, 0, buf.length, rinfo.port, 'localhost')
   })
 
   socket.bind(function () {
-    var other = dgram.createSocket('udp4')
+    const other = dgram.createSocket('udp4')
     other.on('message', function (buf, rinfo) {
       t.same(rinfo.port, socket.address().port)
       t.same(rinfo.address, '127.0.0.1')
-      t.same(buf, Buffer('hello'))
+      t.same(buf, Buffer.from('hello'))
       socket.close()
       other.close()
       t.end()
     })
-    other.send(Buffer('hello'), 0, 5, socket.address().port, '127.0.0.1')
+    other.send(Buffer.from('hello'), 0, 5, socket.address().port, '127.0.0.1')
   })
 })
 
 tape('combine server and connection', function (t) {
-  var socket = utp()
+  const socket = utp()
   var gotClient = false
 
   socket.on('connection', function (client) {
@@ -92,7 +92,7 @@ tape('combine server and connection', function (t) {
     client.on('data', function (data) {
       socket.close()
       client.destroy()
-      t.same(data, Buffer('hi'))
+      t.same(data, Buffer.from('hi'))
       t.ok(gotClient)
       t.end()
     })
@@ -101,12 +101,13 @@ tape('combine server and connection', function (t) {
 
 tape('both ends write first', function (t) {
   var missing = 2
-  var socket = utp()
+  const socket = utp()
 
   socket.on('connection', function (connection) {
     connection.write('a')
     connection.on('data', function (data) {
-      t.same(data, Buffer('b'))
+      t.same(data, Buffer.from('b'))
+      connection.end()
       done()
     })
   })
@@ -115,7 +116,7 @@ tape('both ends write first', function (t) {
     var connection = socket.connect(socket.address().port)
     connection.write('b')
     connection.on('data', function (data) {
-      t.same(data, Buffer('a'))
+      t.same(data, Buffer.from('a'))
       connection.end()
       done()
     })

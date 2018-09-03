@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
-var socket = require('./')()
+const socket = require('./')({allowHalfOpen: false})
 var host = null
 var port = 0
 
 for (var i = 2; i < process.argv.length; i++) {
   if (process.argv[i][0] !== '-') {
-    var parts = process.argv[i].split(':')
+    const parts = process.argv[i].split(':')
     port = Number(parts.pop()) || 0
     host = parts.pop()
   }
@@ -26,4 +26,13 @@ if (process.argv.indexOf('-l') > -1) {
 
 function onconnection (connection) {
   process.stdin.pipe(connection).pipe(process.stdout)
+  connection.on('end', function () {
+    process.exit()
+  })
+  connection.on('close', function () {
+    process.exit()
+  })
+  process.once('SIGINT', function () {
+    connection.end()
+  })
 }
