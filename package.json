@@ -17,13 +17,13 @@
   },
   "dependencies": {
     "napi-macros": "^1.8.1",
-    "node-gyp-build": "^3.4.0",
+    "node-gyp-build": "^3.5.0",
     "readable-stream": "^3.0.2",
     "timeout-refresh": "^1.0.0",
     "unordered-set": "^2.0.1"
   },
   "devDependencies": {
-    "prebuildify": "^2.7.0",
+    "prebuildify": "^2.9.0",
     "standard": "^11.0.1",
     "tape": "^4.9.1"
   },
