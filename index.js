@@ -241,7 +241,7 @@ function toHandle (obj) {
 }
 
 function callOnClose (self, onclose) {
-  onclose.call(self)
+  if (onclose) onclose.call(self)
 }
 
 function emitListening (self) {
