@@ -228,6 +228,28 @@ Dereference the socket from the node event loop.
 
 Opposite of `socket.unref()`
 
+## Development
+
+When developing you'll need to install the build tools based on your platform to make node-gyp run.
+Then run:
+
+```sh
+npm run fetch-libutp
+```
+
+This will fetch the libutp dependency as a gitsubmodule.
+Then build it using
+
+```sh
+npm install
+```
+
+To rebuild it simply do:
+
+```sh
+node-gyp build
+```
+
 ## License
 
 MIT
