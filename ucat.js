@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const socket = require('./')({allowHalfOpen: false})
+const socket = require('./')({ allowHalfOpen: false })
 var host = null
 var port = 0
 

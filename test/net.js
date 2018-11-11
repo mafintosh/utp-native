@@ -397,7 +397,7 @@ tape('disable half open', function (t) {
   })
 
   server.listen(0, function () {
-    const socket = utp.connect(server.address().port, '127.0.0.1', {allowHalfOpen: true})
+    const socket = utp.connect(server.address().port, '127.0.0.1', { allowHalfOpen: true })
 
     socket.write('a')
     socket.end()

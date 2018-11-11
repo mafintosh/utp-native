@@ -188,7 +188,7 @@ UTP.prototype._onmessage = function (size, port, address) {
   }
 
   const message = this._buffer.slice(this._offset, this._offset += size)
-  this.emit('message', message, {address, family: 'IPv4', port})
+  this.emit('message', message, { address, family: 'IPv4', port })
 
   if (this._buffer.length - this._offset <= 65536) {
     this._buffer = Buffer.allocUnsafe(this._buffer.length)

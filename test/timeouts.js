@@ -42,7 +42,7 @@ tape('write timeout. this may take >20s', function (t) {
 
 tape('server max connections. this may take >20s', function (t) {
   var inc = 0
-  const server = utp.createServer({allowHalfOpen: false}, function (socket) {
+  const server = utp.createServer({ allowHalfOpen: false }, function (socket) {
     inc++
     t.ok(inc < 3)
     socket.write('hi')
