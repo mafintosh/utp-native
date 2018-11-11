@@ -118,12 +118,12 @@ UTP.prototype.close = function (onclose) {
   if (this._closed) return process.nextTick(callOnClose, this, onclose)
   if (onclose) this.once('close', onclose)
   if (this._closing) return
-  this.closing = true
+  this._closing = true
   this._closeMaybe()
 }
 
 UTP.prototype._closeMaybe = function () {
-  if (this.closing && !this.connections.length && !this._sending.length && this._inited && !this._closed) {
+  if (this._closing && !this.connections.length && !this._sending.length && this._inited && !this._closed) {
     this._closed = true
     binding.utp_napi_close(this._handle)
   }
