@@ -51,3 +51,20 @@ tape('send message', function (t) {
     })
   })
 })
+
+tape('send after close', function (t) {
+  const sock = utp()
+
+  sock.bind(0, '127.0.0.1', function () {
+    const { port, address } = sock.address()
+    sock.send(Buffer.from('hello'), 0, 5, port, address, function (err) {
+      t.error(err, 'no error')
+      sock.close(function () {
+        sock.send(Buffer.from('world'), 0, 5, port, address, function (err) {
+          t.ok(err, 'should error')
+          t.end()
+        })
+      })
+    })
+  })
+})
