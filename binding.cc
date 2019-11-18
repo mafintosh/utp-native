@@ -68,6 +68,7 @@ typedef struct {
   napi_ref on_send;
   napi_ref on_connection;
   napi_ref on_close;
+  int pending_close;
 } utp_napi_t;
 
 typedef struct {
@@ -168,6 +169,9 @@ on_uv_read (uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf, const struct s
 static void
 on_uv_close (uv_handle_t *handle) {
   utp_napi_t *self = (utp_napi_t *) handle->data;
+
+  self->pending_close--;
+  if (self->pending_close > 0) return;
 
   UTP_NAPI_CALLBACK(self->on_close, {
     NAPI_MAKE_CALLBACK(env, NULL, ctx, callback, 0, NULL, NULL);
@@ -297,7 +301,7 @@ on_utp_accept (utp_callback_arguments *a) {
 static uint64
 on_utp_error (utp_callback_arguments *a) {
   utp_napi_connection_t *self = (utp_napi_connection_t *) utp_get_userdata(a->socket);
-  
+
   UTP_NAPI_CALLBACK(self->on_error, {
     napi_value argv[1];
     napi_create_int32(env, a->error_code, &(argv[0]));
@@ -344,6 +348,7 @@ NAPI_METHOD(utp_napi_init) {
   NAPI_ARGV(8)
   NAPI_ARGV_BUFFER_CAST(utp_napi_t *, self, 0)
 
+  self->pending_close = 2;
   self->env = env;
   napi_create_reference(env, argv[1], 1, &(self->ctx));
 
@@ -399,6 +404,7 @@ NAPI_METHOD(utp_napi_close) {
   if (err < 0) UTP_NAPI_THROW(err)
 
   uv_close((uv_handle_t *) &(self->handle), on_uv_close);
+  uv_close((uv_handle_t *) &(self->timer), on_uv_close);
 
   return NULL;
 }
