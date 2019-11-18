@@ -25,7 +25,9 @@
   napi_close_handle_scope(env, scope);
 
 #define UTP_NAPI_BUFFER_ALLOC(self, ret, nread) \
-  NAPI_BUFFER(buf, ret); \
+  char *buf; \
+  size_t buf_len; \
+  napi_get_buffer_info(env, ret, (void **) &buf, &buf_len); \
   if (buf_len == 0) { \
     size_t size = nread <= 0 ? 0 : nread; \
     self->buf.base += size; \
@@ -290,8 +292,9 @@ on_utp_accept (utp_callback_arguments *a) {
     napi_create_string_utf8(env, ip, NAPI_AUTO_LENGTH, &(argv[1]));
     napi_value next;
     NAPI_MAKE_CALLBACK(env, NULL, ctx, callback, 2, argv, &next)
-
-    NAPI_BUFFER_CAST(utp_napi_connection_t *, connection, next)
+    utp_napi_connection_t *connection;
+    size_t connection_size;
+    napi_get_buffer_info(env, next, (void **) &connection, &connection_size);
     self->next_connection = connection;
   })
 
