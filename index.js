@@ -131,8 +131,8 @@ UTP.prototype._closeMaybe = function () {
 
 UTP.prototype.connect = function (port, ip) {
   if (!this._inited) this.bind()
-  const conn = new Connection(this, port, ip, null, this._allowHalfOpen)
   if (!ip) ip = '127.0.0.1'
+  const conn = new Connection(this, port, ip, null, this._allowHalfOpen)
   if (!isIP(ip)) conn._resolveAndConnect(port, ip)
   else conn._connect(port, ip || '127.0.0.1')
   return conn
