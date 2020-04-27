@@ -13,6 +13,21 @@
     return NULL; \
   }
 
+#define NAPI_MAKE_CALLBACK_AND_ALLOC(env, nil, ctx, cb, n, argv, res, nread) \
+  if (napi_make_callback(env, nil, ctx, cb, n, argv, &res) == napi_pending_exception) { \
+    napi_value fatal_exception; \
+    napi_get_and_clear_last_exception(env, &fatal_exception); \
+    napi_fatal_exception(env, fatal_exception); \
+    { \
+      UTP_NAPI_CALLBACK(self->realloc, { \
+        NAPI_MAKE_CALLBACK(env, nil, ctx, callback, 0, NULL, &res); \
+        UTP_NAPI_BUFFER_ALLOC(self, res, 0) \
+      }) \
+    } \
+  } else { \
+    UTP_NAPI_BUFFER_ALLOC(self, res, nread) \
+  }
+
 #define UTP_NAPI_CALLBACK(fn, src) \
   napi_env env = self->env; \
   napi_handle_scope scope; \
@@ -55,6 +70,7 @@ typedef struct {
   napi_ref on_error;
   napi_ref on_close;
   napi_ref on_connect;
+  napi_ref realloc;
 } utp_napi_connection_t;
 
 typedef struct {
@@ -70,6 +86,7 @@ typedef struct {
   napi_ref on_send;
   napi_ref on_connection;
   napi_ref on_close;
+  napi_ref realloc;
   int pending_close;
 } utp_napi_t;
 
@@ -163,8 +180,7 @@ on_uv_read (uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf, const struct s
     napi_create_int32(env, nread, &(argv[0]));
     napi_create_uint32(env, port, &(argv[1]));
     napi_create_string_utf8(env, ip, NAPI_AUTO_LENGTH, &(argv[2]));
-    NAPI_MAKE_CALLBACK(env, NULL, ctx, callback, 3, argv, &ret)
-    UTP_NAPI_BUFFER_ALLOC(self, ret, nread)
+    NAPI_MAKE_CALLBACK_AND_ALLOC(env, NULL, ctx, callback, 3, argv, ret, nread)
   })
 }
 
@@ -217,6 +233,7 @@ utp_napi_connection_destroy (utp_napi_connection_t *self) {
   napi_delete_reference(self->env, self->on_end);
   napi_delete_reference(self->env, self->on_error);
   napi_delete_reference(self->env, self->on_close);
+  napi_delete_reference(self->env, self->realloc);
 }
 
 static uint64
@@ -246,8 +263,7 @@ on_utp_state_change (utp_callback_arguments *a) {
           napi_value ret;
           napi_value argv[1];
           napi_create_uint32(env, self->recv_packet_size, &(argv[0]));
-          NAPI_MAKE_CALLBACK(env, NULL, ctx, callback, 1, argv, &ret)
-          UTP_NAPI_BUFFER_ALLOC(self, ret, self->recv_packet_size)
+          NAPI_MAKE_CALLBACK_AND_ALLOC(env, NULL, ctx, callback, 1, argv, ret, self->recv_packet_size)
           self->recv_packet_size = 0;
         })
       }
@@ -291,7 +307,7 @@ on_utp_accept (utp_callback_arguments *a) {
     napi_create_uint32(env, port, &(argv[0]));
     napi_create_string_utf8(env, ip, NAPI_AUTO_LENGTH, &(argv[1]));
     napi_value next;
-    NAPI_MAKE_CALLBACK(env, NULL, ctx, callback, 2, argv, &next)
+    NAPI_MAKE_CALLBACK(env, NULL, ctx, callback, 2, argv, &next) // will never throw due to the event being NTed in js
     utp_napi_connection_t *connection;
     size_t connection_size;
     napi_get_buffer_info(env, next, (void **) &connection, &connection_size);
@@ -329,8 +345,7 @@ on_utp_read (utp_callback_arguments *a) {
     napi_value ret;
     napi_value argv[1];
     napi_create_uint32(env, self->recv_packet_size, &(argv[0]));
-    NAPI_MAKE_CALLBACK(env, NULL, ctx, callback, 1, argv, &ret)
-    UTP_NAPI_BUFFER_ALLOC(self, ret, self->recv_packet_size)
+    NAPI_MAKE_CALLBACK_AND_ALLOC(env, NULL, ctx, callback, 1, argv, ret, self->recv_packet_size)
     self->recv_packet_size = 0;
   })
 
@@ -348,7 +363,7 @@ on_utp_sendto (utp_callback_arguments *a) {
 }
 
 NAPI_METHOD(utp_napi_init) {
-  NAPI_ARGV(8)
+  NAPI_ARGV(9)
   NAPI_ARGV_BUFFER_CAST(utp_napi_t *, self, 0)
 
   self->pending_close = 2;
@@ -378,6 +393,7 @@ NAPI_METHOD(utp_napi_init) {
   napi_create_reference(env, argv[5], 1, &(self->on_send));
   napi_create_reference(env, argv[6], 1, &(self->on_connection));
   napi_create_reference(env, argv[7], 1, &(self->on_close));
+  napi_create_reference(env, argv[8], 1, &(self->realloc));
 
   self->utp = utp_init(2);
   utp_context_set_userdata(self->utp, self);
@@ -423,6 +439,9 @@ NAPI_METHOD(utp_napi_destroy) {
   napi_delete_reference(env, self->ctx);
   napi_delete_reference(env, self->on_message);
   napi_delete_reference(env, self->on_send);
+  napi_delete_reference(env, self->on_connection);
+  napi_delete_reference(env, self->on_close);
+  napi_delete_reference(env, self->realloc);
 
   NAPI_FOR_EACH(send_reqs, el) {
     NAPI_BUFFER_CAST(utp_napi_send_request_t *, send_req, el)
@@ -541,7 +560,7 @@ NAPI_METHOD(utp_napi_unref) {
 }
 
 NAPI_METHOD(utp_napi_connection_init) {
-  NAPI_ARGV(9)
+  NAPI_ARGV(10)
   NAPI_ARGV_BUFFER_CAST(utp_napi_connection_t *, self, 0)
 
   self->env = env;
@@ -558,6 +577,7 @@ NAPI_METHOD(utp_napi_connection_init) {
   napi_create_reference(env, argv[6], 1, &(self->on_error));
   napi_create_reference(env, argv[7], 1, &(self->on_close));
   napi_create_reference(env, argv[8], 1, &(self->on_connect));
+  napi_create_reference(env, argv[9], 1, &(self->realloc));
 
   return NULL;
 }

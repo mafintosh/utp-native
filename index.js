@@ -54,7 +54,8 @@ UTP.prototype._init = function () {
     this._onmessage,
     this._onsend,
     this._onconnection,
-    this._onclose
+    this._onclose,
+    this._realloc
   )
 
   if (!this._refed) this.unref()
@@ -179,6 +180,12 @@ UTP.prototype._resolveAndBind = function (port, host) {
     if (err) return self.emit('error', err)
     self.bind(port, ip)
   })
+}
+
+UTP.prototype._realloc = function () {
+  this._buffer = Buffer.allocUnsafe(this._buffer.length)
+  this._offset = 0
+  return this._buffer
 }
 
 UTP.prototype._onmessage = function (size, port, address) {
