@@ -6,7 +6,7 @@
   "gypfile": true,
   "scripts": {
     "test-timeouts": "tape test/timeouts.js",
-    "test": "standard && tape test/net.js test/sockets.js",
+    "test": "standard && tape test/net.js test/sockets.js test/udp.js",
     "install": "node-gyp-build",
     "fetch-libutp": "git submodule update --recursive --init",
     "prebuild": "prebuildify --napi --strip",
