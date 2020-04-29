@@ -140,7 +140,7 @@ UTP.prototype.connect = function (port, ip) {
 }
 
 UTP.prototype.listen = function (port, ip, onlistening) {
-  if (!this._inited) this.bind(port, ip, onlistening)
+  if (!this._address) this.bind(port, ip, onlistening)
   this.firewall(false)
 }
 
@@ -166,6 +166,7 @@ UTP.prototype.bind = function (port, ip, onlistening) {
   try {
     binding.utp_napi_bind(this._handle, port, ip)
   } catch (err) {
+    this._address = null
     process.nextTick(emitError, this, err)
     return
   }
