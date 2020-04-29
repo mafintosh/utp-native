@@ -34,6 +34,22 @@ tape('bind, close, bind', function (t) {
   })
 })
 
+tape('bind after error', function (t) {
+  const a = utp()
+  const b = utp()
+
+  a.listen(function () {
+    b.once('error', function (err) {
+      t.ok(err, 'should error')
+      b.listen(function () {
+        t.pass('should still bind')
+        a.close(() => b.close(() => t.end()))
+      })
+    })
+    b.listen(a.address().port)
+  })
+})
+
 tape('send message', function (t) {
   const sock = utp()
 
