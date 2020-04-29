@@ -1,6 +1,6 @@
 {
   "name": "utp-native",
-  "version": "2.1.9",
+  "version": "2.1.10",
   "description": "Native bindings for libutp",
   "main": "index.js",
   "gypfile": true,
