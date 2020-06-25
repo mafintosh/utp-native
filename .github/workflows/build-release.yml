@@ -6,10 +6,10 @@ name: Build binaries and create release
 jobs:
   build:
     strategy:
-      matrix: 
-        os: [ARM, windows-latest, ARM64, macos-latest, ubuntu-latest]
+      matrix:
+        os: [ARM, windows-latest, ARM64, macos-latest, ubuntu-16.04]
     runs-on: ${{ matrix.os }}
-    name: Build 
+    name: Build
     steps:
       - uses: actions/checkout@v2.1.0
       - uses: actions/setup-node@v1
@@ -24,7 +24,7 @@ jobs:
           path: ./prebuilds
   release:
     name: Create Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-16.04
     needs: build
     steps:
       - name: Checkout code
@@ -41,7 +41,7 @@ jobs:
         with:
           tag_name: ${{ github.ref }}
           release_name: Release ${{ github.ref }}
-          draft: true 
+          draft: true
           prerelease: false
       - name: Get version
         id: get_version
@@ -51,7 +51,7 @@ jobs:
           tar --create --verbose --file="./${{ steps.get_version.outputs.VERSION }}-linux-arm.tar" --directory "prebuilds/ARM" .
           tar --create --verbose --file="./${{ steps.get_version.outputs.VERSION }}-linux-arm64.tar" --directory "prebuilds/ARM64" .
           tar --create --verbose --file="./${{ steps.get_version.outputs.VERSION }}-windows-all.tar" --directory "prebuilds/windows-latest" .
-          tar --create --verbose --file="./${{ steps.get_version.outputs.VERSION }}-linux-x86.tar" --directory "prebuilds/ubuntu-latest" .
+          tar --create --verbose --file="./${{ steps.get_version.outputs.VERSION }}-linux-x86.tar" --directory "prebuilds/ubuntu-16.04" .
           tar --create --verbose --file="./${{ steps.get_version.outputs.VERSION }}-osx-x86.tar" --directory "prebuilds/macos-latest" .
       - name: Upload armv7l build
         uses: actions/upload-release-asset@v1
@@ -59,7 +59,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./${{ steps.get_version.outputs.VERSION }}-linux-arm.tar 
+          asset_path: ./${{ steps.get_version.outputs.VERSION }}-linux-arm.tar
           asset_name: ${{ steps.get_version.outputs.VERSION }}-linux-arm.tar
           asset_content_type: application/x-tar
       - name: Upload aarch64 build
@@ -68,7 +68,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./${{ steps.get_version.outputs.VERSION }}-linux-arm64.tar 
+          asset_path: ./${{ steps.get_version.outputs.VERSION }}-linux-arm64.tar
           asset_name: ${{ steps.get_version.outputs.VERSION }}-linux-arm64.tar
           asset_content_type: application/x-tar
       - name: Upload x86 build
@@ -77,7 +77,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./${{ steps.get_version.outputs.VERSION }}-linux-x86.tar 
+          asset_path: ./${{ steps.get_version.outputs.VERSION }}-linux-x86.tar
           asset_name: ${{ steps.get_version.outputs.VERSION }}-linux-x86.tar
           asset_content_type: application/x-tar
       - name: Upload windows build
@@ -86,7 +86,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./${{ steps.get_version.outputs.VERSION }}-windows-all.tar 
+          asset_path: ./${{ steps.get_version.outputs.VERSION }}-windows-all.tar
           asset_name: ${{ steps.get_version.outputs.VERSION }}-windows-all.tar
           asset_content_type: application/x-tar
       - name: Upload osx build
@@ -95,7 +95,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./${{ steps.get_version.outputs.VERSION }}-osx-x86.tar 
+          asset_path: ./${{ steps.get_version.outputs.VERSION }}-osx-x86.tar
           asset_name: ${{ steps.get_version.outputs.VERSION }}-osx-x86.tar
           asset_content_type: application/x-tar
       #- uses: JS-DevTools/npm-publish@v1
