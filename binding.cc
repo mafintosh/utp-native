@@ -376,7 +376,10 @@ NAPI_METHOD(utp_napi_init) {
   uv_timer_t *timer = &(self->timer);
   timer->data = self;
 
-  int err = uv_timer_init(uv_default_loop(), timer);
+  struct uv_loop_s *loop;
+  napi_get_uv_event_loop(env, &loop);
+
+  int err = uv_timer_init(loop, timer);
   if (err < 0) UTP_NAPI_THROW(err)
 
   NAPI_ARGV_BUFFER(buf, 3)
@@ -386,7 +389,7 @@ NAPI_METHOD(utp_napi_init) {
   uv_udp_t *handle = &(self->handle);
   handle->data = self;
 
-  err = uv_udp_init(uv_default_loop(), handle);
+  err = uv_udp_init(loop, handle);
   if (err < 0) UTP_NAPI_THROW(err)
 
   napi_create_reference(env, argv[4], 1, &(self->on_message));
