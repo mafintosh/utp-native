@@ -7,7 +7,7 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ARM, windows-latest, ARM64, macos-latest, ubuntu-16.04]
+        os: [ARM, windows-latest, macos-latest, ubuntu-16.04]
     runs-on: ${{ matrix.os }}
     name: Build
     steps:
@@ -51,7 +51,6 @@ jobs:
       - name: Compress builds
         run: |
           tar --create --verbose --file="./${{ steps.get_version.outputs.VERSION }}-linux-arm.tar" --directory "prebuilds/ARM" .
-          tar --create --verbose --file="./${{ steps.get_version.outputs.VERSION }}-linux-arm64.tar" --directory "prebuilds/ARM64" .
           tar --create --verbose --file="./${{ steps.get_version.outputs.VERSION }}-windows-all.tar" --directory "prebuilds/windows-latest" .
           tar --create --verbose --file="./${{ steps.get_version.outputs.VERSION }}-linux-x86.tar" --directory "prebuilds/ubuntu-16.04" .
           tar --create --verbose --file="./${{ steps.get_version.outputs.VERSION }}-osx-x86.tar" --directory "prebuilds/macos-latest" .
@@ -63,15 +62,6 @@ jobs:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./${{ steps.get_version.outputs.VERSION }}-linux-arm.tar
           asset_name: ${{ steps.get_version.outputs.VERSION }}-linux-arm.tar
-          asset_content_type: application/x-tar
-      - name: Upload aarch64 build
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./${{ steps.get_version.outputs.VERSION }}-linux-arm64.tar
-          asset_name: ${{ steps.get_version.outputs.VERSION }}-linux-arm64.tar
           asset_content_type: application/x-tar
       - name: Upload x86 build
         uses: actions/upload-release-asset@v1
