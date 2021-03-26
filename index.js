@@ -84,6 +84,11 @@ UTP.prototype.address = function () {
   }
 }
 
+UTP.prototype.setTTL = function (ttl) {
+  if (!this._inited) throw new Error('setTTL EBADF')
+  binding.utp_napi_set_ttl(this._handle, ttl)
+}
+
 UTP.prototype.send = function (buf, offset, len, port, host, cb) {
   if (!cb) cb = noop
   if (!isIP(host)) return this._resolveAndSend(buf, offset, len, port, host, cb)
