@@ -13,8 +13,20 @@
     return NULL; \
   }
 
-#define NAPI_MAKE_CALLBACK_AND_ALLOC(env, nil, ctx, cb, n, argv, res, nread) \
-  if (napi_make_callback(env, nil, ctx, cb, n, argv, &res) == napi_pending_exception) { \
+#define NAPI_MAKE_CALLBACK_AND_ALLOC(env, nil, ctx, cb, n, argv, nread) \
+  napi_value res; \
+  napi_status stat = napi_make_callback(env, nil, ctx, cb, n, argv, &res); \
+  if (stat == napi_ok) { \
+    bool is_buf; \
+    napi_is_buffer(env, res, &is_buf); \
+    if (is_buf) { \
+      UTP_NAPI_BUFFER_ALLOC(self, res, nread) \
+    } else { \
+      size_t size = nread <= 0 ? 0 : nread; \
+      self->buf.base += size; \
+      self->buf.len -= size; \
+    } \
+  } else if (stat == napi_pending_exception) { \
     napi_value fatal_exception; \
     napi_get_and_clear_last_exception(env, &fatal_exception); \
     napi_fatal_exception(env, fatal_exception); \
@@ -25,7 +37,7 @@
       }) \
     } \
   } else { \
-    UTP_NAPI_BUFFER_ALLOC(self, res, nread) \
+    printf("[UTP-NATIVE]: Unexpected result of callback %i\n", stat); \
   }
 
 #define UTP_NAPI_CALLBACK(fn, src) \
@@ -43,14 +55,8 @@
   char *buf; \
   size_t buf_len; \
   napi_get_buffer_info(env, ret, (void **) &buf, &buf_len); \
-  if (buf_len == 0) { \
-    size_t size = nread <= 0 ? 0 : nread; \
-    self->buf.base += size; \
-    self->buf.len -= size; \
-  } else { \
-    self->buf.base = buf; \
-    self->buf.len = buf_len; \
-  }
+  self->buf.base = buf; \
+  self->buf.len = buf_len; \
 
 typedef struct {
   uint32_t min_recv_packet_size;
@@ -71,6 +77,7 @@ typedef struct {
   napi_ref on_close;
   napi_ref on_connect;
   napi_ref realloc;
+  bool destroyed;
 } utp_napi_connection_t;
 
 typedef struct {
@@ -175,12 +182,11 @@ on_uv_read (uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf, const struct s
   utp_napi_parse_address((struct sockaddr *) addr, ip, &port);
 
   UTP_NAPI_CALLBACK(self->on_message, {
-    napi_value ret;
     napi_value argv[3];
     napi_create_int32(env, nread, &(argv[0]));
     napi_create_uint32(env, port, &(argv[1]));
     napi_create_string_utf8(env, ip, NAPI_AUTO_LENGTH, &(argv[2]));
-    NAPI_MAKE_CALLBACK_AND_ALLOC(env, NULL, ctx, callback, 3, argv, ret, nread)
+    NAPI_MAKE_CALLBACK_AND_ALLOC(env, NULL, ctx, callback, 3, argv, nread)
   })
 }
 
@@ -189,7 +195,12 @@ on_uv_close (uv_handle_t *handle) {
   utp_napi_t *self = (utp_napi_t *) handle->data;
 
   self->pending_close--;
-  if (self->pending_close > 0) return;
+  if (self->pending_close == 1) {
+    uv_close((uv_handle_t *) &(self->handle), on_uv_close);
+  }
+  if (self->pending_close > 0) {
+    return;
+  }
 
   UTP_NAPI_CALLBACK(self->on_close, {
     NAPI_MAKE_CALLBACK(env, NULL, ctx, callback, 0, NULL, NULL);
@@ -219,6 +230,12 @@ on_utp_firewall (utp_callback_arguments *a) {
 
 inline static void
 utp_napi_connection_destroy (utp_napi_connection_t *self) {
+  if (self->destroyed) {
+    return;
+  }
+  if (self->buf.base == NULL) {
+    return;
+  }
   UTP_NAPI_CALLBACK(self->on_close, {
     NAPI_MAKE_CALLBACK(env, NULL, ctx, callback, 0, NULL, NULL)
   })
@@ -226,6 +243,7 @@ utp_napi_connection_destroy (utp_napi_connection_t *self) {
   self->env = env;
   self->buf.base = NULL;
   self->buf.len = 0;
+  self->destroyed = true;
 
   napi_delete_reference(self->env, self->ctx);
   napi_delete_reference(self->env, self->on_read);
@@ -258,12 +276,14 @@ on_utp_state_change (utp_callback_arguments *a) {
     }
 
     case UTP_STATE_EOF: {
+      if (self->destroyed) {
+        return 0;
+      }
       if (self->recv_packet_size) {
         UTP_NAPI_CALLBACK(self->on_read, {
-          napi_value ret;
           napi_value argv[1];
           napi_create_uint32(env, self->recv_packet_size, &(argv[0]));
-          NAPI_MAKE_CALLBACK_AND_ALLOC(env, NULL, ctx, callback, 1, argv, ret, self->recv_packet_size)
+          NAPI_MAKE_CALLBACK_AND_ALLOC(env, NULL, ctx, callback, 1, argv, self->recv_packet_size)
           self->recv_packet_size = 0;
         })
       }
@@ -342,10 +362,9 @@ on_utp_read (utp_callback_arguments *a) {
   }
 
   UTP_NAPI_CALLBACK(self->on_read, {
-    napi_value ret;
     napi_value argv[1];
     napi_create_uint32(env, self->recv_packet_size, &(argv[0]));
-    NAPI_MAKE_CALLBACK_AND_ALLOC(env, NULL, ctx, callback, 1, argv, ret, self->recv_packet_size)
+    NAPI_MAKE_CALLBACK_AND_ALLOC(env, NULL, ctx, callback, 1, argv, self->recv_packet_size)
     self->recv_packet_size = 0;
   })
 
@@ -425,7 +444,6 @@ NAPI_METHOD(utp_napi_close) {
   err = uv_udp_recv_stop(&(self->handle));
   if (err < 0) UTP_NAPI_THROW(err)
 
-  uv_close((uv_handle_t *) &(self->handle), on_uv_close);
   uv_close((uv_handle_t *) &(self->timer), on_uv_close);
 
   return NULL;

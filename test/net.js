@@ -1,4 +1,5 @@
 const tape = require('tape')
+const { Writable, pipeline } = require('streamx')
 const utp = require('../')
 
 tape('server + connect', function (t) {
@@ -9,15 +10,19 @@ tape('server + connect', function (t) {
     socket.write('hello mike')
     socket.end()
   })
+  server.once('close', () => t.end())
 
   server.listen(function () {
     var socket = utp.connect(server.address().port)
-
-    socket.on('connect', function () {
-      socket.destroy()
+    pipeline(
+      socket,
+      new Writable(),
+      error => t.error(error)
+    )
+    socket.once('connect', function () {
+      socket.end()
       server.close()
       t.ok(connected, 'connected successfully')
-      t.end()
     })
 
     socket.write('hello joe')
@@ -29,9 +34,13 @@ tape('server + connect with resolve', function (t) {
 
   const server = utp.createServer(function (socket) {
     connected = true
+    socket.once('open', function () {
+      socket.end()
+      socket.pipe(new Writable())
+    })
     socket.write('hello mike')
-    socket.end()
   })
+  server.once('close', () => t.end())
 
   server.listen(function () {
     const socket = utp.connect(server.address().port, 'localhost')
@@ -40,7 +49,6 @@ tape('server + connect with resolve', function (t) {
       socket.destroy()
       server.close()
       t.ok(connected, 'connected successfully')
-      t.end()
     })
 
     socket.write('hello joe')
@@ -56,25 +64,32 @@ tape('bad resolve', function (t) {
     t.fail('should not connect')
   })
 
-  socket.on('error', function () {
-    t.pass('errored')
-  })
-
-  socket.on('close', function () {
-    t.pass('closed')
-    t.end()
-  })
+  pipeline(
+    socket,
+    new Writable(),
+    error => {
+      t.ok(error)
+      t.pass('closed')
+      t.end()
+    }
+  )
 })
 
 tape('server immediate close', function (t) {
-  t.plan(2)
+  t.plan(3)
 
   const server = utp.createServer(function (socket) {
     socket.write('hi')
-    socket.end()
-    server.close(function () {
-      t.pass('closed')
+    socket.once('open', function () {
+      socket.end()
     })
+    pipeline(
+      socket,
+      new Writable(),
+      error => {
+        t.error(error)
+      }
+    )
   })
 
   server.listen(0, function () {
@@ -84,10 +99,16 @@ tape('server immediate close', function (t) {
     socket.once('connect', function () {
       socket.end()
     })
-
-    socket.on('close', function () {
-      t.pass('client closed')
-    })
+    pipeline(
+      socket,
+      new Writable(),
+      error => {
+        t.error(error)
+        server.close(function () {
+          t.pass('closed')
+        })
+      }
+    )
   })
 })
 
@@ -136,9 +157,11 @@ tape('server listens on a port in use', function (t) {
 
 tape('echo server', function (t) {
   const server = utp.createServer(function (socket) {
-    socket.pipe(socket)
     socket.on('data', function (data) {
       t.same(data, Buffer.from('hello'))
+      if (socket.writable) {
+        socket.write(data)
+      }
     })
     socket.on('end', function () {
       socket.end()
@@ -162,10 +185,12 @@ tape('echo server back and fourth', function (t) {
   var echoed = 0
 
   const server = utp.createServer(function (socket) {
-    socket.pipe(socket)
     socket.on('data', function (data) {
       echoed++
       t.same(data, Buffer.from('hello'))
+      if (socket.writable) {
+        socket.write(data)
+      }
     })
   })
 
@@ -228,8 +253,12 @@ tape('echo big message with setContentSize', function (t) {
 
   const server = utp.createServer(function (socket) {
     socket.setContentSize(big.length)
-    socket.on('data', () => packets++)
-    socket.pipe(socket)
+    socket.on('data', (data) => {
+      packets++
+      if (socket.writable) {
+        socket.write(data)
+      }
+    })
   })
 
   server.listen(0, function () {
@@ -335,9 +364,8 @@ tape('flushes', function (t) {
   var sent = ''
   const server = utp.createServer(function (socket) {
     var buf = ''
-    socket.setEncoding('utf-8')
     socket.on('data', function (data) {
-      buf += data
+      buf += data.toString('utf8')
     })
     socket.on('end', function () {
       server.close()
@@ -350,7 +378,7 @@ tape('flushes', function (t) {
   server.listen(0, function () {
     const socket = utp.connect(server.address().port)
     for (var i = 0; i < 50; i++) {
-      socket.write(i + '\n')
+      socket.write(Buffer.from(i + '\n'))
       sent += i + '\n'
     }
     socket.end()
@@ -359,24 +387,24 @@ tape('flushes', function (t) {
 
 tape('close waits for connections to close', function (t) {
   var sent = ''
+  var buf = ''
   const server = utp.createServer(function (socket) {
-    var buf = ''
-    socket.setEncoding('utf-8')
     socket.on('data', function (data) {
-      buf += data
+      buf += data.toString('utf8')
     })
     socket.on('end', function () {
-      socket.end()
-      t.same(buf, sent)
-      t.end()
+      server.close()
     })
-    server.close()
+  })
+  server.on('close', () => {
+    t.same(buf, sent)
+    t.end()
   })
 
   server.listen(0, function () {
     const socket = utp.connect(server.address().port)
     for (var i = 0; i < 50; i++) {
-      socket.write(i + '\n')
+      socket.write(Buffer.from(i + '\n'))
       sent += i + '\n'
     }
     socket.end()
@@ -405,7 +433,7 @@ tape('disable half open', function (t) {
 })
 
 tape('timeout', function (t) {
-  t.plan(3)
+  t.plan(5)
 
   var serverClosed = false
   var clientClosed = false
@@ -419,9 +447,15 @@ tape('timeout', function (t) {
     socket.resume()
     socket.write('hi')
     socket.on('close', function () {
+      t.pass('server-socket closed')
       serverClosed = true
       done()
     })
+  })
+  server.on('close', () => {
+    t.ok(clientClosed)
+    t.ok(serverClosed)
+    t.end()
   })
 
   server.listen(0, function () {
@@ -432,6 +466,7 @@ tape('timeout', function (t) {
       socket.destroy()
     })
     socket.on('close', function () {
+      t.pass('client-socket closed')
       clientClosed = true
       done()
     })
@@ -440,8 +475,5 @@ tape('timeout', function (t) {
   function done () {
     if (--missing) return
     server.close()
-    t.ok(clientClosed)
-    t.ok(serverClosed)
-    t.end()
   }
 })
