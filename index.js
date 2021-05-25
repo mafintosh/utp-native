@@ -7,6 +7,8 @@ const set = require('unordered-set')
 
 module.exports = UTP
 
+const EMPTY = Buffer.alloc(0)
+
 function UTP (opts) {
   if (!(this instanceof UTP)) return new UTP(opts)
   events.EventEmitter.call(this)
@@ -196,7 +198,7 @@ UTP.prototype._realloc = function () {
 UTP.prototype._onmessage = function (size, port, address) {
   if (size < 0) {
     this.emit('error', new Error('Read failed (status: ' + size + ')'))
-    return
+    return EMPTY
   }
 
   const message = this._buffer.slice(this._offset, this._offset += size)
@@ -210,6 +212,7 @@ UTP.prototype._onmessage = function (size, port, address) {
     this._offset = 0
     return this._buffer
   }
+  return EMPTY
 }
 
 UTP.prototype._onsend = function (send, status) {

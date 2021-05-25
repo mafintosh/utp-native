@@ -15,18 +15,7 @@
 
 #define NAPI_MAKE_CALLBACK_AND_ALLOC(env, nil, ctx, cb, n, argv, nread) \
   napi_value res; \
-  napi_status stat = napi_make_callback(env, nil, ctx, cb, n, argv, &res); \
-  if (stat == napi_ok) { \
-    bool is_buf; \
-    napi_is_buffer(env, res, &is_buf); \
-    if (is_buf) { \
-      UTP_NAPI_BUFFER_ALLOC(self, res, nread) \
-    } else { \
-      size_t size = nread <= 0 ? 0 : nread; \
-      self->buf.base += size; \
-      self->buf.len -= size; \
-    } \
-  } else if (stat == napi_pending_exception) { \
+  if (napi_make_callback(env, nil, ctx, cb, n, argv, &res) == napi_pending_exception) { \
     napi_value fatal_exception; \
     napi_get_and_clear_last_exception(env, &fatal_exception); \
     napi_fatal_exception(env, fatal_exception); \
@@ -37,7 +26,7 @@
       }) \
     } \
   } else { \
-    printf("[UTP-NATIVE]: Unexpected result of callback %i\n", stat); \
+    UTP_NAPI_BUFFER_ALLOC(self, res, nread) \
   }
 
 #define UTP_NAPI_CALLBACK(fn, src) \
@@ -55,8 +44,14 @@
   char *buf; \
   size_t buf_len; \
   napi_get_buffer_info(env, ret, (void **) &buf, &buf_len); \
-  self->buf.base = buf; \
-  self->buf.len = buf_len; \
+  if (buf_len == 0) { \
+    size_t size = nread <= 0 ? 0 : nread; \
+    self->buf.base += size; \
+    self->buf.len -= size; \
+  } else { \
+    self->buf.base = buf; \
+    self->buf.len = buf_len; \
+  }
 
 typedef struct {
   uint32_t min_recv_packet_size;
