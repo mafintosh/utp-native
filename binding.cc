@@ -5,7 +5,7 @@
 #include <string.h>
 #include "./deps/libutp/utp.h"
 
-#define UTP_NAPI_TIMEOUT_INTERVAL 500
+#define UTP_NAPI_TIMEOUT_INTERVAL 20
 
 #define UTP_NAPI_THROW(err) \
   { \
