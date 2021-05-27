@@ -144,6 +144,7 @@ static void
 on_uv_interval (uv_timer_t *req) {
   utp_napi_t *self = (utp_napi_t *) req->data;
   utp_check_timeouts(self->utp);
+  utp_issue_deferred_acks(self->utp);
 }
 
 static void
