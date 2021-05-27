@@ -575,6 +575,28 @@ NAPI_METHOD(utp_napi_unref) {
   return NULL;
 }
 
+NAPI_METHOD(utp_napi_recv_buffer) {
+  NAPI_ARGV(2)
+  NAPI_ARGV_BUFFER_CAST(utp_napi_t *, self, 0)
+  NAPI_ARGV_INT32(size, 1)
+
+  int err;
+  NAPI_UV_THROWS(err, uv_recv_buffer_size((uv_handle_t *) &(self->handle), &size))
+
+  NAPI_RETURN_INT32(size)
+}
+
+NAPI_METHOD(utp_napi_send_buffer) {
+  NAPI_ARGV(2)
+  NAPI_ARGV_BUFFER_CAST(utp_napi_t *, self, 0)
+  NAPI_ARGV_INT32(size, 1)
+
+  int err;
+  NAPI_UV_THROWS(err, uv_send_buffer_size((uv_handle_t *) &(self->handle), &size))
+
+  NAPI_RETURN_INT32(size)
+}
+
 NAPI_METHOD(utp_napi_set_ttl) {
   NAPI_ARGV(2)
   NAPI_ARGV_BUFFER_CAST(utp_napi_t *, self, 0)
@@ -710,6 +732,8 @@ NAPI_INIT() {
   NAPI_EXPORT_FUNCTION(utp_napi_ref)
   NAPI_EXPORT_FUNCTION(utp_napi_unref)
   NAPI_EXPORT_FUNCTION(utp_napi_set_ttl)
+  NAPI_EXPORT_FUNCTION(utp_napi_send_buffer)
+  NAPI_EXPORT_FUNCTION(utp_napi_recv_buffer)
   NAPI_EXPORT_FUNCTION(utp_napi_connection_init)
   NAPI_EXPORT_FUNCTION(utp_napi_connection_write)
   NAPI_EXPORT_FUNCTION(utp_napi_connection_writev)

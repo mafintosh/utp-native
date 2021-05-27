@@ -84,6 +84,26 @@ UTP.prototype.address = function () {
   }
 }
 
+UTP.prototype.getRecvBufferSize = function () {
+  if (!this._inited) throw new Error('getRecvBufferSize EBADF')
+  return binding.utp_napi_recv_buffer(this._handle, 0)
+}
+
+UTP.prototype.setRecvBufferSize = function (n) {
+  if (!this._inited) throw new Error('setRecvBufferSize EBADF')
+  return binding.utp_napi_recv_buffer(this._handle, n)
+}
+
+UTP.prototype.getSendBufferSize = function () {
+  if (!this._inited) throw new Error('getSendBufferSize EBADF')
+  return binding.utp_napi_send_buffer(this._handle, 0)
+}
+
+UTP.prototype.setSendBufferSize = function (n) {
+  if (!this._inited) throw new Error('setSendBufferSize EBADF')
+  return binding.utp_napi_send_buffer(this._handle, n)
+}
+
 UTP.prototype.setTTL = function (ttl) {
   if (!this._inited) throw new Error('setTTL EBADF')
   binding.utp_napi_set_ttl(this._handle, ttl)
