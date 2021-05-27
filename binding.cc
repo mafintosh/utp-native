@@ -95,6 +95,11 @@ typedef struct {
   napi_ref ctx;
 } utp_napi_send_request_t;
 
+static void
+on_sendto_free (uv_udp_send_t *req, int status) {
+  free(req);
+}
+
 static int
 utp_napi_connection_drain (utp_napi_connection_t *self) {
 
@@ -356,9 +361,16 @@ on_utp_read (utp_callback_arguments *a) {
 static uint64
 on_utp_sendto (utp_callback_arguments *a) {
   utp_napi_t *self = (utp_napi_t *) utp_context_get_userdata(a->context);
-
   uv_buf_t buf = uv_buf_init((char *) a->buf, a->len);
-  uv_udp_try_send(&(self->handle), &buf, 1, a->address);
+
+  if (uv_udp_try_send(&(self->handle), &buf, 1, a->address) >= 0) return 0;
+
+  char *cpy = (char *) malloc(sizeof(uv_udp_send_t) + a->len);
+
+  buf.base = cpy + sizeof(uv_udp_send_t);
+  memcpy(buf.base, a->buf, a->len);
+
+  uv_udp_send((uv_udp_send_t *) cpy, &(self->handle), &buf, 1, a->address, on_sendto_free);
 
   return 0;
 }
