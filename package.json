@@ -6,7 +6,7 @@
   "gypfile": true,
   "scripts": {
     "test-timeouts": "tape test/timeouts.js",
-    "test": "standard && tape test/net.js test/sockets.js test/udp.js",
+    "test": "standard && tape test/net.js test/sockets.js test/udp.j",
     "install": "node-gyp-build",
     "fetch-libutp": "git submodule update --recursive --init",
     "prebuild": "prebuildify --napi --strip",
@@ -21,7 +21,7 @@
   "dependencies": {
     "napi-macros": "^2.0.0",
     "node-gyp-build": "^4.2.0",
-    "readable-stream": "^3.0.2",
+    "streamx": "^2.10.3",
     "timeout-refresh": "^1.0.0",
     "unordered-set": "^2.0.1"
   },

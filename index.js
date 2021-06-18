@@ -5,9 +5,9 @@ const events = require('events')
 const dns = require('dns')
 const set = require('unordered-set')
 
-const EMPTY = Buffer.alloc(0)
-
 module.exports = UTP
+
+const EMPTY = Buffer.alloc(0)
 
 function UTP (opts) {
   if (!(this instanceof UTP)) return new UTP(opts)
@@ -157,16 +157,17 @@ UTP.prototype._closeMaybe = function () {
   if (this._closing && !this.connections.length && !this._sending.length && this._inited && !this._closed) {
     this._closed = true
     binding.utp_napi_close(this._handle)
+  } else {
+    for (const conn of this.connections) {
+      conn.destroy(new Error('server closed'))
+    }
   }
 }
 
 UTP.prototype.connect = function (port, ip) {
   if (!this._inited) this.bind()
   if (!ip) ip = '127.0.0.1'
-  const conn = new Connection(this, port, ip, null, this._allowHalfOpen)
-  if (!isIP(ip)) conn._resolveAndConnect(port, ip)
-  else conn._connect(port, ip || '127.0.0.1')
-  return conn
+  return new Connection(this, port, ip, null, this._allowHalfOpen)
 }
 
 UTP.prototype.listen = function (port, ip, onlistening) {
@@ -229,11 +230,13 @@ UTP.prototype._onmessage = function (size, port, address) {
   this.emit('message', message, { address, family: 'IPv4', port })
 
   if (this._buffer.length - this._offset <= 65536) {
+    // max package buffer is 64kb and we wanna make sure we have room for that
+    // returning the buffer indicates to the native code that
+    // the buffer has changed
     this._buffer = Buffer.allocUnsafe(this._buffer.length)
     this._offset = 0
     return this._buffer
   }
-
   return EMPTY
 }
 

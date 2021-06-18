@@ -6,6 +6,7 @@ tape('connection timeout. this may take >20s', function (t) {
   const socket = dgram.createSocket('udp4')
   socket.bind(0, function () {
     const connection = utp.connect(socket.address().port)
+    connection.resume()
     connection.on('error', function (err) {
       socket.close()
       t.same(err.message, 'UTP_ETIMEDOUT')
@@ -30,6 +31,7 @@ tape('write timeout. this may take >20s', function (t) {
 
   server.listen(function () {
     connection = utp.connect(server.address().port)
+    connection.resume()
     connection.on('connect', function () {
       t.pass('connected to server')
     })
@@ -44,8 +46,14 @@ tape('server max connections. this may take >20s', function (t) {
   var inc = 0
   const server = utp.createServer({ allowHalfOpen: false }, function (socket) {
     inc++
-    t.ok(inc < 3)
+    if (inc > 2) {
+      t.fail('too many connections')
+    }
     socket.write('hi')
+  })
+  server.on('close', function () {
+    t.pass('should error')
+    t.end()
   })
 
   server.maxConnections = 2
@@ -61,13 +69,13 @@ tape('server max connections. this may take >20s', function (t) {
         c.on('connect', function () {
           t.fail('only 2 connections')
         })
-        c.on('error', function () {
+        c.on('error', function (error) {
+          t.equals(error.message, 'UTP_ETIMEDOUT')
           a.destroy()
           b.destroy()
           c.destroy()
-          server.close()
           t.pass('should error')
-          t.end()
+          server.close()
         })
       })
     })
