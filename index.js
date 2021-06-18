@@ -76,7 +76,7 @@ UTP.prototype.unref = function () {
 }
 
 UTP.prototype.address = function () {
-  if (!this._address) throw new Error('Socket not bound')
+  if (!this._address || this._closing) throw new Error('Socket not bound')
   return {
     address: this._address,
     family: 'IPv4',
@@ -86,26 +86,31 @@ UTP.prototype.address = function () {
 
 UTP.prototype.getRecvBufferSize = function () {
   if (!this._inited) throw new Error('getRecvBufferSize EBADF')
+  if (this._closing) return 0
   return binding.utp_napi_recv_buffer(this._handle, 0)
 }
 
 UTP.prototype.setRecvBufferSize = function (n) {
   if (!this._inited) throw new Error('setRecvBufferSize EBADF')
+  if (this._closing) return 0
   return binding.utp_napi_recv_buffer(this._handle, n)
 }
 
 UTP.prototype.getSendBufferSize = function () {
   if (!this._inited) throw new Error('getSendBufferSize EBADF')
+  if (this._closing) return 0
   return binding.utp_napi_send_buffer(this._handle, 0)
 }
 
 UTP.prototype.setSendBufferSize = function (n) {
   if (!this._inited) throw new Error('setSendBufferSize EBADF')
+  if (this._closing) return 0
   return binding.utp_napi_send_buffer(this._handle, n)
 }
 
 UTP.prototype.setTTL = function (ttl) {
   if (!this._inited) throw new Error('setTTL EBADF')
+  if (this._closing) return
   binding.utp_napi_set_ttl(this._handle, ttl)
 }
 
