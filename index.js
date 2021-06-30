@@ -271,7 +271,7 @@ function SendRequest () {
 function noop () {}
 
 function isIP (ip) {
-  return /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)
+  return /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}$/.test(ip)
 }
 
 function toHandle (obj) {
