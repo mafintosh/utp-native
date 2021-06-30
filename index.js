@@ -6,6 +6,7 @@ const dns = require('dns')
 const set = require('unordered-set')
 
 const EMPTY = Buffer.alloc(0)
+const IPv4Pattern = /^((?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])[.]){3}(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$/
 
 module.exports = UTP
 
@@ -271,7 +272,7 @@ function SendRequest () {
 function noop () {}
 
 function isIP (ip) {
-  return /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)){3}$/.test(ip)
+  return IPv4Pattern.test(ip)
 }
 
 function toHandle (obj) {
