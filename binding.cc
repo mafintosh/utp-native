@@ -88,6 +88,7 @@ typedef struct {
   napi_ref on_close;
   napi_ref realloc;
   int pending_close;
+  int closing;
 } utp_napi_t;
 
 typedef struct {
@@ -148,8 +149,8 @@ utp_napi_parse_address (struct sockaddr *name, char *ip, int *port) {
 static void
 on_uv_interval (uv_timer_t *req) {
   utp_napi_t *self = (utp_napi_t *) req->data;
-  utp_check_timeouts(self->utp);
   utp_issue_deferred_acks(self->utp);
+  utp_check_timeouts(self->utp);
 }
 
 static void
@@ -165,6 +166,7 @@ on_uv_read (uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf, const struct s
   // TODO: is this overkill to call here?
   // we do it because ucat.c does it
   utp_check_timeouts(self->utp);
+  if (self->closing) return;
 
   if (nread == 0) {
     utp_issue_deferred_acks(self->utp);
@@ -379,6 +381,7 @@ NAPI_METHOD(utp_napi_init) {
   NAPI_ARGV(9)
   NAPI_ARGV_BUFFER_CAST(utp_napi_t *, self, 0)
 
+  self->closing = 0;
   self->pending_close = 2;
   self->env = env;
   napi_create_reference(env, argv[1], 1, &(self->ctx));
@@ -429,6 +432,8 @@ NAPI_METHOD(utp_napi_init) {
 NAPI_METHOD(utp_napi_close) {
   NAPI_ARGV(1)
   NAPI_ARGV_BUFFER_CAST(utp_napi_t *, self, 0)
+
+  self->closing = 1;
 
   int err;
 
