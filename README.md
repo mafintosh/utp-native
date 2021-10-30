@@ -139,6 +139,10 @@ Set a continuous timeout. If no packets have been received within `ms`
 a timeout event is triggered. Up to you to listen for this event and
 potentially destroy the socket. All timeouts are cancelled on socket end.
 
+#### `connection.on('connect')`
+
+Emitted when the connection is actually connected.
+
 #### `connection.on('close')`
 
 Emitted when the connection is fully closed.
