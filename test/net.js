@@ -1,7 +1,9 @@
-const tape = require('tape')
+const test = require('brittle')
 const utp = require('../')
 
-tape('server + connect', function (t) {
+test('server + connect', function (t) {
+  t.plan(1)
+
   var connected = false
 
   const server = utp.createServer(function (socket) {
@@ -17,14 +19,15 @@ tape('server + connect', function (t) {
       socket.destroy()
       server.close()
       t.ok(connected, 'connected successfully')
-      t.end()
     })
 
     socket.write('hello joe')
   })
 })
 
-tape('server + connect with resolve', function (t) {
+test('server + connect with resolve', function (t) {
+  t.plan(1)
+
   var connected = false
 
   const server = utp.createServer(function (socket) {
@@ -40,15 +43,14 @@ tape('server + connect with resolve', function (t) {
       socket.destroy()
       server.close()
       t.ok(connected, 'connected successfully')
-      t.end()
     })
 
     socket.write('hello joe')
   })
 })
 
-tape('bad resolve', function (t) {
-  t.plan(2)
+test('bad resolve', function (t) {
+  t.plan(4)
 
   const socket = utp.connect(10000, 'domain.does-not-exist')
 
@@ -62,12 +64,11 @@ tape('bad resolve', function (t) {
 
   socket.on('close', function () {
     t.pass('closed')
-    t.end()
   })
 })
 
-tape('server immediate close', function (t) {
-  t.plan(2)
+test('server immediate close', function (t) {
+  t.plan(3)
 
   const server = utp.createServer(function (socket) {
     socket.write('hi')
@@ -91,7 +92,7 @@ tape('server immediate close', function (t) {
   })
 })
 
-tape.skip('only server sends', function (t) {
+test.skip('only server sends', function (t) {
   // this is skipped because it doesn't work.
   // utpcat has the same issue so this seems to be a bug
   // in libutp it self
@@ -105,19 +106,15 @@ tape.skip('only server sends', function (t) {
     var socket = utp.connect(server.address().port)
 
     socket.on('data', function (data) {
-      t.same(data, Buffer.from('hi'))
+      t.alike(data, Buffer.from('hi'))
       socket.destroy()
       server.close()
     })
   })
 })
 
-tape('server listens on a port in use', function (t) {
-  if (Number(process.versions.node.split('.')[0]) === 0) {
-    t.pass('skipping since node 0.10 forces SO_REUSEADDR')
-    t.end()
-    return
-  }
+test('server listens on a port in use', function (t) {
+  t.plan(1)
 
   const server = utp.createServer()
   server.listen(0, function () {
@@ -129,16 +126,17 @@ tape('server listens on a port in use', function (t) {
       server.close()
       server2.close()
       t.pass('had error')
-      t.end()
     })
   })
 })
 
-tape('echo server', function (t) {
+test('echo server', function (t) {
+  t.plan(2)
+
   const server = utp.createServer(function (socket) {
     socket.pipe(socket)
     socket.on('data', function (data) {
-      t.same(data, Buffer.from('hello'))
+      t.alike(data, Buffer.from('hello'))
     })
     socket.on('end', function () {
       socket.end()
@@ -152,20 +150,21 @@ tape('echo server', function (t) {
     socket.on('data', function (data) {
       socket.end()
       server.close()
-      t.same(data, Buffer.from('hello'))
-      t.end()
+      t.alike(data, Buffer.from('hello'))
     })
   })
 })
 
-tape('echo server back and fourth', function (t) {
+test('echo server back and fourth', function (t) {
+  t.plan(12)
+
   var echoed = 0
 
   const server = utp.createServer(function (socket) {
     socket.pipe(socket)
     socket.on('data', function (data) {
       echoed++
-      t.same(data, Buffer.from('hello'))
+      t.alike(data, Buffer.from('hello'))
     })
   })
 
@@ -179,14 +178,15 @@ tape('echo server back and fourth', function (t) {
       if (--rounds) return socket.write(data)
       socket.end()
       server.close()
-      t.same(echoed, 10)
-      t.same(Buffer.from('hello'), data)
-      t.end()
+      t.is(echoed, 10)
+      t.alike(Buffer.from('hello'), data)
     })
   })
 })
 
-tape('echo big message', function (t) {
+test('echo big message', function (t) {
+  t.plan(2)
+
   var packets = 0
 
   const big = Buffer.alloc(8 * 1024 * 1024)
@@ -212,15 +212,16 @@ tape('echo big message', function (t) {
       if (big.length === ptr) {
         socket.end()
         server.close()
-        t.same(buffer, big)
+        t.alike(buffer, big)
         t.pass('echo took ' + (Date.now() - then) + 'ms (' + packets + ' packets)')
-        t.end()
       }
     })
   })
 })
 
-tape('echo big message with setContentSize', function (t) {
+test('echo big message with setContentSize', function (t) {
+  t.plan(2)
+
   var packets = 0
 
   const big = Buffer.alloc(8 * 1024 * 1024)
@@ -248,15 +249,16 @@ tape('echo big message with setContentSize', function (t) {
       if (big.length === ptr) {
         socket.end()
         server.close()
-        t.same(buffer, big)
+        t.alike(buffer, big)
         t.pass('echo took ' + (Date.now() - then) + 'ms (' + packets + ' packets)')
-        t.end()
       }
     })
   })
 })
 
-tape('two connections', function (t) {
+test('two connections', function (t) {
+  t.plan(5)
+
   var count = 0
   var gotA = false
   var gotB = false
@@ -275,13 +277,13 @@ tape('two connections', function (t) {
 
     socket1.on('data', function (data) {
       gotA = true
-      t.same(data, Buffer.from('a'))
+      t.alike(data, Buffer.from('a'))
       if (gotB) done()
     })
 
     socket2.on('data', function (data) {
       gotB = true
-      t.same(data, Buffer.from('b'))
+      t.alike(data, Buffer.from('b'))
       if (gotA) done()
     })
 
@@ -291,13 +293,14 @@ tape('two connections', function (t) {
       server.close()
       t.ok(gotA)
       t.ok(gotB)
-      t.same(count, 2)
-      t.end()
+      t.alike(count, 2)
     }
   })
 })
 
-tape('emits close', function (t) {
+test('emits close', function (t) {
+  t.plan(6)
+
   var serverClosed = false
   var clientClosed = false
 
@@ -327,11 +330,12 @@ tape('emits close', function (t) {
     server.close()
     t.ok(serverClosed)
     t.ok(clientClosed)
-    t.end()
   }
 })
 
-tape('flushes', function (t) {
+test('flushes', function (t) {
+  t.plan(1)
+
   var sent = ''
   const server = utp.createServer(function (socket) {
     var buf = ''
@@ -342,8 +346,7 @@ tape('flushes', function (t) {
     socket.on('end', function () {
       server.close()
       socket.end()
-      t.same(buf, sent)
-      t.end()
+      t.alike(buf, sent)
     })
   })
 
@@ -357,7 +360,9 @@ tape('flushes', function (t) {
   })
 })
 
-tape('close waits for connections to close', function (t) {
+test('close waits for connections to close', function (t) {
+  t.plan(1)
+
   var sent = ''
   const server = utp.createServer(function (socket) {
     var buf = ''
@@ -367,8 +372,7 @@ tape('close waits for connections to close', function (t) {
     })
     socket.on('end', function () {
       socket.end()
-      t.same(buf, sent)
-      t.end()
+      t.alike(buf, sent)
     })
     server.close()
   })
@@ -383,11 +387,11 @@ tape('close waits for connections to close', function (t) {
   })
 })
 
-tape('disable half open', function (t) {
-  t.plan(2)
+test('disable half open', function (t) {
+  t.plan(3)
   const server = utp.createServer({ allowHalfOpen: false }, function (socket) {
     socket.on('data', function (data) {
-      t.same(data, Buffer.from('a'))
+      t.alike(data, Buffer.from('a'))
     })
     socket.on('close', function () {
       server.close(function () {
@@ -404,12 +408,9 @@ tape('disable half open', function (t) {
   })
 })
 
-tape('timeout', function (t) {
-  t.plan(3)
-
-  var serverClosed = false
-  var clientClosed = false
-  var missing = 2
+test('timeout', async function (t) {
+  const close = t.test('close')
+  close.plan(4)
 
   const server = utp.createServer(function (socket) {
     socket.setTimeout(100, function () {
@@ -419,8 +420,7 @@ tape('timeout', function (t) {
     socket.resume()
     socket.write('hi')
     socket.on('close', function () {
-      serverClosed = true
-      done()
+      close.pass('server closed')
     })
   })
 
@@ -432,16 +432,10 @@ tape('timeout', function (t) {
       socket.destroy()
     })
     socket.on('close', function () {
-      clientClosed = true
-      done()
+      close.pass('client closed')
     })
   })
 
-  function done () {
-    if (--missing) return
-    server.close()
-    t.ok(clientClosed)
-    t.ok(serverClosed)
-    t.end()
-  }
+  await close
+  server.close()
 })

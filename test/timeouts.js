@@ -1,20 +1,23 @@
-const tape = require('tape')
+const test = require('brittle')
 const dgram = require('dgram')
 const utp = require('../')
 
-tape('connection timeout. this may take >20s', function (t) {
+test('connection timeout. this may take >20s', function (t) {
+  t.plan(1)
+
   const socket = dgram.createSocket('udp4')
   socket.bind(0, function () {
     const connection = utp.connect(socket.address().port)
     connection.on('error', function (err) {
       socket.close()
-      t.same(err.message, 'UTP_ETIMEDOUT')
-      t.end()
+      t.is(err.message, 'UTP_ETIMEDOUT')
     })
   })
 })
 
-tape('write timeout. this may take >20s', function (t) {
+test('write timeout. this may take >20s', function (t) {
+  t.plan(3)
+
   const server = utp.createServer()
   var connection
 
@@ -34,13 +37,14 @@ tape('write timeout. this may take >20s', function (t) {
       t.pass('connected to server')
     })
     connection.on('error', function (err) {
-      t.same(err.message, 'UTP_ETIMEDOUT')
-      t.end()
+      t.is(err.message, 'UTP_ETIMEDOUT')
     })
   })
 })
 
-tape('server max connections. this may take >20s', function (t) {
+test('server max connections. this may take >20s', function (t) {
+  t.plan(4)
+
   var inc = 0
   const server = utp.createServer({ allowHalfOpen: false }, function (socket) {
     inc++
@@ -67,7 +71,6 @@ tape('server max connections. this may take >20s', function (t) {
           c.destroy()
           server.close()
           t.pass('should error')
-          t.end()
         })
       })
     })

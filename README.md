@@ -165,7 +165,7 @@ receives a client message because of that.
 
 The socket api allows you to reuse the same underlying UDP socket to both connect to other clients on accept incoming connections. It also mimicks the node core [dgram socket](https://nodejs.org/api/dgram.html#dgram_class_dgram_socket) api.
 
-#### `socket = utp([options])`
+#### `socket = new utp.Socket([options])`
 
 Create a new utp socket.
 
@@ -249,7 +249,7 @@ npm install
 To rebuild it simply do:
 
 ```sh
-node-gyp build
+npx node-gyp-build
 ```
 
 ## License

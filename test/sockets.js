@@ -1,16 +1,17 @@
-const tape = require('tape')
+const test = require('brittle')
 const dgram = require('dgram')
 const utp = require('../')
 
-tape('dgram-like socket', function (t) {
-  const socket = utp()
+test('dgram-like socket', function (t) {
+  t.plan(3)
+
+  const socket = new utp.Socket()
 
   socket.on('message', function (buf, rinfo) {
-    t.same(rinfo.port, socket.address().port)
-    t.same(rinfo.address, '127.0.0.1')
-    t.same(buf, Buffer.from('hello'))
+    t.is(rinfo.port, socket.address().port)
+    t.is(rinfo.address, '127.0.0.1')
+    t.alike(buf, Buffer.from('hello'))
     socket.close()
-    t.end()
   })
 
   socket.bind(function () {
@@ -18,13 +19,14 @@ tape('dgram-like socket', function (t) {
   })
 })
 
-tape('double close', function (t) {
-  const socket = utp()
+test('double close', function (t) {
+  t.plan(1)
+
+  const socket = new utp.Socket()
 
   socket.on('close', function () {
     socket.close(function () {
       t.pass('closed twice')
-      t.end()
     })
   })
 
@@ -33,8 +35,10 @@ tape('double close', function (t) {
   })
 })
 
-tape('echo socket', function (t) {
-  const socket = utp()
+test('echo socket', function (t) {
+  t.plan(3)
+
+  const socket = new utp.Socket()
 
   socket.on('message', function (buf, rinfo) {
     socket.send(buf, 0, buf.length, rinfo.port, rinfo.address)
@@ -43,19 +47,20 @@ tape('echo socket', function (t) {
   socket.bind(function () {
     var other = dgram.createSocket('udp4')
     other.on('message', function (buf, rinfo) {
-      t.same(rinfo.port, socket.address().port)
-      t.same(rinfo.address, '127.0.0.1')
-      t.same(buf, Buffer.from('hello'))
+      t.is(rinfo.port, socket.address().port)
+      t.is(rinfo.address, '127.0.0.1')
+      t.alike(buf, Buffer.from('hello'))
       socket.close()
       other.close()
-      t.end()
     })
     other.send(Buffer.from('hello'), 0, 5, socket.address().port, '127.0.0.1')
   })
 })
 
-tape('echo socket with resolve', function (t) {
-  const socket = utp()
+test('echo socket with resolve', function (t) {
+  t.plan(3)
+
+  const socket = new utp.Socket()
 
   socket.on('message', function (buf, rinfo) {
     socket.send(buf, 0, buf.length, rinfo.port, 'localhost')
@@ -64,25 +69,24 @@ tape('echo socket with resolve', function (t) {
   socket.bind(function () {
     const other = dgram.createSocket('udp4')
     other.on('message', function (buf, rinfo) {
-      t.same(rinfo.port, socket.address().port)
-      t.same(rinfo.address, '127.0.0.1')
-      t.same(buf, Buffer.from('hello'))
+      t.is(rinfo.port, socket.address().port)
+      t.is(rinfo.address, '127.0.0.1')
+      t.alike(buf, Buffer.from('hello'))
       socket.close()
       other.close()
-      t.end()
     })
     other.send(Buffer.from('hello'), 0, 5, socket.address().port, '127.0.0.1')
   })
 })
 
-tape('combine server and connection', function (t) {
-  const socket = utp()
-  var gotClient = false
+test('combine server and connection', function (t) {
+  t.plan(3)
+
+  const socket = new utp.Socket()
 
   socket.on('connection', function (client) {
-    gotClient = true
-    t.same(client.remotePort, socket.address().port)
-    t.same(client.remoteAddress, '127.0.0.1')
+    t.is(client.remotePort, socket.address().port)
+    t.is(client.remoteAddress, '127.0.0.1')
     client.pipe(client)
   })
 
@@ -90,25 +94,24 @@ tape('combine server and connection', function (t) {
     var client = socket.connect(socket.address().port)
     client.write('hi')
     client.on('data', function (data) {
+      client.end()
       socket.close()
-      client.destroy()
-      t.same(data, Buffer.from('hi'))
-      t.ok(gotClient)
-      t.end()
+      t.alike(data, Buffer.from('hi'))
     })
   })
 })
 
-tape('both ends write first', function (t) {
-  var missing = 2
-  const socket = utp()
+test('both ends write first', async function (t) {
+  const close = t.test('close')
+  close.plan(2)
+
+  const socket = new utp.Socket()
 
   socket.on('connection', function (connection) {
     connection.write('a')
     connection.on('data', function (data) {
-      t.same(data, Buffer.from('b'))
+      close.alike(data, Buffer.from('b'))
       connection.end()
-      done()
     })
   })
 
@@ -116,15 +119,11 @@ tape('both ends write first', function (t) {
     var connection = socket.connect(socket.address().port)
     connection.write('b')
     connection.on('data', function (data) {
-      t.same(data, Buffer.from('a'))
+      close.alike(data, Buffer.from('a'))
       connection.end()
-      done()
     })
   })
 
-  function done () {
-    if (--missing) return
-    socket.close()
-    t.end()
-  }
+  await close
+  socket.close()
 })
