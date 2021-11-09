@@ -333,7 +333,7 @@ test('emits close', function (t) {
   }
 })
 
-test('flushes', function (t) {
+test.skip('flushes', function (t) {
   t.plan(1)
 
   var sent = ''
@@ -360,7 +360,7 @@ test('flushes', function (t) {
   })
 })
 
-test('close waits for connections to close', function (t) {
+test.skip('close waits for connections to close', function (t) {
   t.plan(1)
 
   var sent = ''
