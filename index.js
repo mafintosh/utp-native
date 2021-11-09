@@ -7,7 +7,7 @@ const set = require('unordered-set')
 const EMPTY = Buffer.alloc(0)
 const IPv4Pattern = /^((?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])[.]){3}(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$/
 
-class Socket extends EventEmitter {
+const Socket = module.exports = class Socket extends EventEmitter {
   constructor (opts) {
     super()
 
@@ -244,28 +244,24 @@ class Socket extends EventEmitter {
     this._handle = null
     this.emit('close')
   }
-}
 
-function createServer (opts, onconnection) {
-  if (typeof opts === 'function') {
-    onconnection = opts
-    opts = {}
+  static createServer (opts, onconnection) {
+    if (typeof opts === 'function') {
+      onconnection = opts
+      opts = {}
+    }
+    const server = new Socket(opts)
+    if (onconnection) server.on('connection', onconnection)
+    return server
   }
-  const server = new Socket(opts)
-  if (onconnection) server.on('connection', onconnection)
-  return server
+
+  static connect (port, host, opts) {
+    const udp = new Socket(opts)
+    return udp.connect(port, host).on('close', ononeoffclose)
+  }
 }
 
-function connect (port, host, opts) {
-  const udp = new Socket(opts)
-  return udp.connect(port, host).on('close', ononeoffclose)
-}
-
-module.exports = {
-  Socket,
-  createServer,
-  connect
-}
+Socket.Socket = Socket
 
 function SendRequest () {
   this._handle = Buffer.alloc(binding.sizeof_utp_napi_send_request_t)
