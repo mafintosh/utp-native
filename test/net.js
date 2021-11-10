@@ -438,7 +438,7 @@ test('timeout', async function (t) {
   server.close()
 })
 
-test('exception in connection listener', async function (t) {
+test.skip('exception in connection listener', async function (t) {
   t.plan(1)
 
   const server = utp.createServer(function (socket) {
