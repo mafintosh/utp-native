@@ -336,24 +336,25 @@ test('emits close', function (t) {
 test('flushes', function (t) {
   t.plan(1)
 
-  var sent = ''
+  const sent = []
   const server = utp.createServer(function (socket) {
-    var buf = ''
+    const recv = []
     socket.on('data', function (data) {
-      buf += data.toString()
+      recv.push(data)
     })
     socket.on('end', function () {
       server.close()
       socket.end()
-      t.alike(buf, sent)
+      t.alike(Buffer.concat(recv), Buffer.concat(sent))
     })
   })
 
   server.listen(0, function () {
     const socket = utp.connect(server.address().port)
     for (var i = 0; i < 50; i++) {
-      socket.write(i + '\n')
-      sent += i + '\n'
+      const data = Buffer.from([0x30 + i])
+      socket.write(data)
+      sent.push(data)
     }
     socket.end()
   })
@@ -362,15 +363,15 @@ test('flushes', function (t) {
 test('close waits for connections to close', function (t) {
   t.plan(1)
 
-  var sent = ''
+  const sent = []
   const server = utp.createServer(function (socket) {
-    var buf = ''
+    const recv = []
     socket.on('data', function (data) {
-      buf += data.toString()
+      recv.push(data)
     })
     socket.on('end', function () {
       socket.end()
-      t.alike(buf, sent)
+      t.alike(Buffer.concat(recv), Buffer.concat(sent))
     })
     server.close()
   })
@@ -378,8 +379,9 @@ test('close waits for connections to close', function (t) {
   server.listen(0, function () {
     const socket = utp.connect(server.address().port)
     for (var i = 0; i < 50; i++) {
-      socket.write(i + '\n')
-      sent += i + '\n'
+      const data = Buffer.from([0x30 + i])
+      socket.write(data)
+      sent.push(data)
     }
     socket.end()
   })
