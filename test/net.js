@@ -333,15 +333,14 @@ test('emits close', function (t) {
   }
 })
 
-test.skip('flushes', function (t) {
+test('flushes', function (t) {
   t.plan(1)
 
   var sent = ''
   const server = utp.createServer(function (socket) {
     var buf = ''
-    socket.setEncoding('utf-8')
     socket.on('data', function (data) {
-      buf += data
+      buf += data.toString()
     })
     socket.on('end', function () {
       server.close()
@@ -360,15 +359,14 @@ test.skip('flushes', function (t) {
   })
 })
 
-test.skip('close waits for connections to close', function (t) {
+test('close waits for connections to close', function (t) {
   t.plan(1)
 
   var sent = ''
   const server = utp.createServer(function (socket) {
     var buf = ''
-    socket.setEncoding('utf-8')
     socket.on('data', function (data) {
-      buf += data
+      buf += data.toString()
     })
     socket.on('end', function () {
       socket.end()
@@ -438,4 +436,16 @@ test('timeout', async function (t) {
 
   await close
   server.close()
+})
+
+test('abrupt disconnect', async function (t) {
+  const server = utp.createServer(function () {
+    throw new Error()
+  })
+
+  server.listen(0, function () {
+    utp.connect(server.address().port).end()
+  })
+
+  t.pass()
 })
