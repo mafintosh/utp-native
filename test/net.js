@@ -439,13 +439,19 @@ test('timeout', async function (t) {
 })
 
 test('abrupt disconnect', async function (t) {
-  const server = utp.createServer(function () {
-    throw new Error()
+  t.plan(1)
+
+  const server = utp.createServer(function (socket) {
+    socket.destroy()
+    throw new Error('disconnect')
+  })
+
+  process.once('uncaughtException', () => {
+    server.close()
+    t.pass()
   })
 
   server.listen(0, function () {
-    utp.connect(server.address().port).end()
+    utp.connect(server.address().port).destroy()
   })
-
-  t.pass()
 })
