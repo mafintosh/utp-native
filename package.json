@@ -19,6 +19,7 @@
     "node": ">=8.12"
   },
   "dependencies": {
+    "b4a": "^1.1.1",
     "napi-macros": "^2.0.0",
     "node-gyp-build": "^4.2.0",
     "streamx": "^2.11.3",

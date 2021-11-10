@@ -3,8 +3,9 @@ const Connection = require('./lib/connection')
 const EventEmitter = require('events')
 const dns = require('dns')
 const set = require('unordered-set')
+const b4a = require('b4a')
 
-const EMPTY = Buffer.alloc(0)
+const EMPTY = b4a.alloc(0)
 const IPv4Pattern = /^((?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])[.]){3}(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$/
 
 const Socket = module.exports = class Socket extends EventEmitter {
@@ -16,9 +17,9 @@ const Socket = module.exports = class Socket extends EventEmitter {
     this._sending = []
     this._sent = []
     this._offset = 0
-    this._buffer = Buffer.allocUnsafe(2 * 65536)
-    this._handle = Buffer.alloc(binding.sizeof_utp_napi_t)
-    this._nextConnection = Buffer.alloc(binding.sizeof_utp_napi_connection_t)
+    this._buffer = b4a.allocUnsafe(2 * 65536)
+    this._handle = b4a.alloc(binding.sizeof_utp_napi_t)
+    this._nextConnection = b4a.alloc(binding.sizeof_utp_napi_connection_t)
     this._address = null
     this._inited = false
     this._refed = true
@@ -198,7 +199,7 @@ const Socket = module.exports = class Socket extends EventEmitter {
   }
 
   _realloc () {
-    this._buffer = Buffer.allocUnsafe(this._buffer.length)
+    this._buffer = b4a.allocUnsafe(this._buffer.length)
     this._offset = 0
     return this._buffer
   }
@@ -209,11 +210,11 @@ const Socket = module.exports = class Socket extends EventEmitter {
       return EMPTY
     }
 
-    const message = this._buffer.slice(this._offset, this._offset += size)
+    const message = this._buffer.subarray(this._offset, this._offset += size)
     this.emit('message', message, { address, family: 'IPv4', port })
 
     if (this._buffer.length - this._offset <= 65536) {
-      this._buffer = Buffer.allocUnsafe(this._buffer.length)
+      this._buffer = b4a.allocUnsafe(this._buffer.length)
       this._offset = 0
       return this._buffer
     }
@@ -235,7 +236,7 @@ const Socket = module.exports = class Socket extends EventEmitter {
   _onconnection (port, addr) {
     const conn = new Connection(this, port, addr, this._nextConnection, this._allowHalfOpen)
     process.nextTick(emitConnection, this, conn)
-    this._nextConnection = Buffer.alloc(binding.sizeof_utp_napi_connection_t)
+    this._nextConnection = b4a.alloc(binding.sizeof_utp_napi_connection_t)
     return this._nextConnection
   }
 
@@ -264,7 +265,7 @@ const Socket = module.exports = class Socket extends EventEmitter {
 Socket.Socket = Socket
 
 function SendRequest () {
-  this._handle = Buffer.alloc(binding.sizeof_utp_napi_send_request_t)
+  this._handle = b4a.alloc(binding.sizeof_utp_napi_send_request_t)
   this._buffer = null
   this._callback = null
   this._index = null
