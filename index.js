@@ -4,6 +4,7 @@ const EventEmitter = require('events')
 const dns = require('dns')
 const set = require('unordered-set')
 const b4a = require('b4a')
+const queueTick = require('queue-tick')
 
 const EMPTY = b4a.alloc(0)
 const IPv4Pattern = /^((?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])[.]){3}(?:[0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$/
@@ -102,7 +103,7 @@ const Socket = module.exports = class Socket extends EventEmitter {
   send (buf, offset, len, port, host, cb) {
     if (!cb) cb = noop
     if (!isIP(host)) return this._resolveAndSend(buf, offset, len, port, host, cb)
-    if (this._closing) return process.nextTick(cb, new Error('Socket is closed'))
+    if (this._closing) return queueTick(() => cb(new Error('Socket is closed')))
     if (!this._address) this.bind(0)
 
     var send = this._sent.pop()
@@ -130,9 +131,9 @@ const Socket = module.exports = class Socket extends EventEmitter {
     }
   }
 
-  close (onclose) {
-    if (this._closed) return process.nextTick(callOnClose, this, onclose)
-    if (onclose) this.once('close', onclose)
+  close (cb) {
+    if (this._closed) return queueTick(() => cb && cb())
+    if (cb) this.once('close', cb)
     if (this._closing) return
     this._closing = true
     this._closeMaybe()
@@ -182,11 +183,11 @@ const Socket = module.exports = class Socket extends EventEmitter {
       binding.utp_napi_bind(this._handle, port, ip)
     } catch (err) {
       this._address = null
-      process.nextTick(emitError, this, err)
+      queueTick(() => this.emit('error', err))
       return
     }
 
-    process.nextTick(emitListening, this)
+    queueTick(() => this.emit('listening'))
   }
 
   _resolveAndBind (port, host) {
@@ -235,7 +236,7 @@ const Socket = module.exports = class Socket extends EventEmitter {
 
   _onconnection (port, addr) {
     const conn = new Connection(this, port, addr, this._nextConnection, this._allowHalfOpen)
-    process.nextTick(emitConnection, this, conn)
+    queueTick(() => this.emit('connection', conn))
     this._nextConnection = b4a.alloc(binding.sizeof_utp_napi_connection_t)
     return this._nextConnection
   }
@@ -279,22 +280,6 @@ function isIP (ip) {
 
 function toHandle (obj) {
   return obj._handle
-}
-
-function callOnClose (self, onclose) {
-  if (onclose) onclose.call(self)
-}
-
-function emitListening (self) {
-  self.emit('listening')
-}
-
-function emitConnection (self, connection) {
-  self.emit('connection', connection)
-}
-
-function emitError (self, err) {
-  self.emit('error', err)
 }
 
 function ononeoffclose () {
