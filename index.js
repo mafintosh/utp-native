@@ -236,7 +236,7 @@ const Socket = module.exports = class Socket extends EventEmitter {
 
   _onconnection (port, addr) {
     const conn = new Connection(this, port, addr, this._nextConnection, this._allowHalfOpen)
-    queueTick(() => this.emit('connection', conn))
+    this.emit('connection', conn)
     this._nextConnection = b4a.alloc(binding.sizeof_utp_napi_connection_t)
     return this._nextConnection
   }

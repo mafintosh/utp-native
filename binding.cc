@@ -315,11 +315,16 @@ on_utp_accept (utp_callback_arguments *a) {
     napi_create_uint32(env, port, &(argv[0]));
     napi_create_string_utf8(env, ip, NAPI_AUTO_LENGTH, &(argv[1]));
     napi_value next;
-    NAPI_MAKE_CALLBACK(env, NULL, ctx, callback, 2, argv, &next) // will never throw due to the event being NTed in js
-    utp_napi_connection_t *connection;
-    size_t connection_size;
-    napi_get_buffer_info(env, next, (void **) &connection, &connection_size);
-    self->next_connection = connection;
+    if (napi_make_callback(env, NULL, ctx, callback, 2, argv, &next) == napi_pending_exception) {
+      napi_value fatal_exception;
+      napi_get_and_clear_last_exception(env, &fatal_exception);
+      napi_fatal_exception(env, fatal_exception);
+    } else {
+      utp_napi_connection_t *connection;
+      size_t connection_size;
+      napi_get_buffer_info(env, next, (void **) &connection, &connection_size);
+      self->next_connection = connection;
+    }
   })
 
   return 0;
