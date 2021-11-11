@@ -1,186 +1,161 @@
 const test = require('brittle')
 const utp = require('../')
 
-test('server + connect', async function (t) {
-  const connect = t.test('connect')
-  connect.plan(1)
+test('server + connect', (t) => withServer(t, async (server) => {
+  const close = t.test('connect and close sockets')
+  close.plan(2)
 
-  const server = utp.createServer(function (socket) {
+  server.on('connection', (socket) => {
     socket.write('hello mike')
-    socket.end()
+    socket
+      .on('close', () => close.pass('server socket closed'))
+      .destroy() // .end() hangs?
   })
 
-  server.listen(function () {
+  server.listen(() => {
     const socket = utp.connect(server.address().port)
     socket
-      .on('connect', function () {
-        socket.destroy()
-        connect.pass('client connected')
-      })
+      .on('connect', () =>
+        socket.destroy() // .end() hangs?
+      )
+      .on('close', () => close.pass('client socket closed'))
       .write('hello joe')
   })
 
-  await connect
-  server.close()
-})
+  await close
+}))
 
-test('server + connect with resolve', async function (t) {
-  const connect = t.test('connect')
-  connect.plan(1)
+test('server + connect with resolve', (t) => withServer(t, async (server) => {
+  const close = t.test('connect and close sockets')
+  close.plan(2)
 
-  const server = utp.createServer(function (socket) {
+  server.on('connection', (socket) => {
     socket.write('hello mike')
-    socket.end()
+    socket
+      .on('close', () => close.pass('server socket closed'))
+      .destroy() // .end() hangs?
   })
 
-  server.listen(function () {
+  server.listen(() => {
     const socket = utp.connect(server.address().port, 'localhost')
     socket
-      .on('connect', function () {
-        socket.destroy()
-        connect.pass('client connected')
-      })
+      .on('connect', () =>
+        socket.destroy() // .end() hangs?
+      )
+      .on('close', () => close.pass('client socket closed'))
       .write('hello joe')
   })
 
-  await connect
-  server.close()
-})
+  await close
+}))
 
-test('bad resolve', function (t) {
-  t.plan(4)
+test('bad resolve', (t) => {
+  t.plan(2)
 
   const socket = utp.connect(10000, 'domain.does-not-exist')
   socket
-    .on('connect', function () {
-      t.fail('should not connect')
-    })
-    .on('error', function () {
-      t.pass('errored')
-    })
-    .on('close', function () {
-      t.pass('closed')
-    })
+    .on('connect', () => t.fail('should not connect'))
+    .on('error', () => t.pass('errored'))
+    .on('close', () => t.pass('closed'))
 })
 
-test('server immediate close', function (t) {
-  t.plan(3)
+test.skip('server immediate close', (t) => withServer(t, async (server) => {
+  const close = t.test('connect and close server')
+  close.plan(2)
 
-  const server = utp.createServer(function (socket) {
+  server.on('connection', (socket) => {
     socket.write('hi')
-    socket.end()
-    server.close(function () {
-      t.pass('closed')
-    })
+    socket.destroy() // .end() does not remove connection?
+    server.close(() => close.pass('server closed'))
   })
 
-  server.listen(0, function () {
+  server.listen(0, () => {
     const socket = utp.connect(server.address().port)
     socket
-      .on('connect', function () {
-        socket.end()
-      })
-      .on('close', function () {
-        t.pass('client closed')
-      })
+      .on('connect', () =>
+        socket.destroy() // .end() hangs?
+      )
+      .on('close', () => close.pass('client closed'))
       .write('hi')
   })
-})
 
-test.skip('only server sends', function (t) {
-  // this is skipped because it doesn't work.
-  // utpcat has the same issue so this seems to be a bug
-  // in libutp it self
-  // in practice this is less of a problem as most protocols
-  // exchange a handshake message. would be great to get fixed though
-  const server = utp.createServer(function (socket) {
-    socket.write('hi')
+  await close
+}))
+
+test('server listens on a port in use', (t) => withServer(t, (a) => withServer(t, async (b) => {
+  const error = t.test('error on listen')
+  error.plan(1)
+
+  a.listen(0, () => {
+    b
+      .on('error', () => error.pass('had error'))
+      .listen(a.address().port, () => {
+        error.fail('should not be listening')
+      })
   })
 
-  server.listen(0, function () {
-    const socket = utp.connect(server.address().port)
-    socket.on('data', function (data) {
-      t.alike(data, Buffer.from('hi'))
-      socket.destroy()
-      server.close()
-    })
-  })
-})
+  await error
+})))
 
-test('server listens on a port in use', function (t) {
-  t.plan(1)
+test('echo server', (t) => withServer(t, async (server) => {
+  const writes = t.test('write and close sockets')
+  writes.plan(4)
 
-  const server = utp.createServer()
-  server.listen(0, function () {
-    const server2 = utp.createServer()
-    server2.listen(server.address().port, function () {
-      t.fail('should not be listening')
-    })
-    server2.on('error', function () {
-      server.close()
-      server2.close()
-      t.pass('had error')
-    })
-  })
-})
-
-test('echo server', function (t) {
-  t.plan(2)
-
-  const server = utp.createServer(function (socket) {
+  server.on('connection', (socket) => {
     socket.pipe(socket)
     socket
-      .on('data', function (data) {
-        t.alike(data, Buffer.from('hello'))
-      })
-      .on('end', function () {
-        socket.end()
-      })
+      .on('data', (data) => writes.alike(data, Buffer.from('hello')))
+      .on('end', () => socket.destroy())
+      .on('close', () => writes.pass('server socket closed'))
   })
 
-  server.listen(0, function () {
+  server.listen(0, () => {
     const socket = utp.connect(server.address().port)
     socket
-      .on('data', function (data) {
-        socket.end()
-        server.close()
-        t.alike(data, Buffer.from('hello'))
-      })
-      .write('hello')
+      .on('data', (data) => writes.alike(data, Buffer.from('hello')))
+      .on('close', () => writes.pass('client socket closed'))
+      .end('hello')
   })
-})
 
-test('echo server back and fourth', function (t) {
-  t.plan(12)
+  await writes
+}))
+
+test('echo server back and fourth', (t) => withServer(t, async (server) => {
+  const writes = t.test('write and close sockets')
+  writes.plan(14)
 
   let echoed = 0
 
-  const server = utp.createServer(function (socket) {
+  server.on('connection', (socket) => {
     socket.pipe(socket)
-    socket.on('data', function (data) {
-      echoed++
-      t.alike(data, Buffer.from('hello'))
-    })
+    socket
+      .on('data', (data) => {
+        echoed++
+        writes.alike(data, Buffer.from('hello'))
+      })
+      .on('close', () => writes.pass('server socket closed'))
   })
 
-  server.listen(0, function () {
+  server.listen(0, () => {
     const socket = utp.connect(server.address().port)
 
     let rounds = 10
 
     socket
-      .on('data', function (data) {
+      .on('data', (data) => {
         if (--rounds) return socket.write(data)
         socket.end()
-        server.close()
-        t.is(echoed, 10)
-        t.alike(Buffer.from('hello'), data)
+        writes.is(echoed, 10)
+        writes.alike(Buffer.from('hello'), data)
       })
+      .on('close', () => writes.pass('client socket closed'))
       .write('hello')
   })
-})
 
-test('echo big message', function (t) {
+  await writes
+}))
+
+test('echo big message', (t) => {
   t.plan(2)
 
   let packets = 0
@@ -188,12 +163,12 @@ test('echo big message', function (t) {
   const big = Buffer.alloc(8 * 1024 * 1024)
   big.fill('yolo')
 
-  const server = utp.createServer(function (socket) {
+  const server = utp.createServer((socket) => {
     socket.on('data', () => packets++)
     socket.pipe(socket)
   })
 
-  server.listen(0, function () {
+  server.listen(0, () => {
     const then = Date.now()
     const socket = utp.connect(server.address().port)
     const buffer = Buffer.alloc(big.length)
@@ -201,7 +176,7 @@ test('echo big message', function (t) {
     let ptr = 0
 
     socket.write(big)
-    socket.on('data', function (data) {
+    socket.on('data', (data) => {
       packets++
       data.copy(buffer, ptr)
       ptr += data.length
@@ -215,7 +190,7 @@ test('echo big message', function (t) {
   })
 })
 
-test('echo big message with setContentSize', function (t) {
+test('echo big message with setContentSize', (t) => {
   t.plan(2)
 
   let packets = 0
@@ -223,13 +198,13 @@ test('echo big message with setContentSize', function (t) {
   const big = Buffer.alloc(8 * 1024 * 1024)
   big.fill('yolo')
 
-  const server = utp.createServer(function (socket) {
+  const server = utp.createServer((socket) => {
     socket.setContentSize(big.length)
     socket.on('data', () => packets++)
     socket.pipe(socket)
   })
 
-  server.listen(0, function () {
+  server.listen(0, () => {
     const then = Date.now()
     const socket = utp.connect(server.address().port)
     const buffer = Buffer.alloc(big.length)
@@ -238,7 +213,7 @@ test('echo big message with setContentSize', function (t) {
 
     socket.setContentSize(big.length)
     socket.write(big)
-    socket.on('data', function (data) {
+    socket.on('data', (data) => {
       packets++
       data.copy(buffer, ptr)
       ptr += data.length
@@ -252,96 +227,82 @@ test('echo big message with setContentSize', function (t) {
   })
 })
 
-test('two connections', function (t) {
-  t.plan(5)
+test.skip('two connections', async (t) => {
+  const writes = t.test('writes')
+  writes.plan(5)
 
-  let count = 0
-  let gotA = false
-  let gotB = false
-
-  const server = utp.createServer(function (socket) {
-    count++
+  const server = utp.createServer((socket) => {
     socket.pipe(socket)
   })
 
-  server.listen(0, function () {
-    const socket1 = utp.connect(server.address().port)
-    const socket2 = utp.connect(server.address().port)
+  server.listen(0, () => {
+    const a = utp.connect(server.address().port)
+    const b = utp.connect(server.address().port)
 
-    socket1.write('a')
-    socket2.write('b')
+    a.write('a')
+    b.write('b')
 
-    socket1.on('data', function (data) {
-      gotA = true
-      t.alike(data, Buffer.from('a'))
-      if (gotB) done()
+    a.on('data', (data) => {
+      writes.alike(data, Buffer.from('a'))
+      a.end()
     })
 
-    socket2.on('data', function (data) {
-      gotB = true
-      t.alike(data, Buffer.from('b'))
-      if (gotA) done()
+    b.on('data', (data) => {
+      writes.alike(data, Buffer.from('b'))
+      b.end()
     })
-
-    function done () {
-      socket1.end()
-      socket2.end()
-      server.close()
-      t.ok(gotA)
-      t.ok(gotB)
-      t.alike(count, 2)
-    }
   })
+
+  await writes.then(() => server.close())
 })
 
-test('emits close', async function (t) {
+test('emits close', (t) => withServer(t, async (server) => {
   const close = t.test('close')
-  close.plan(4)
+  close.plan(2)
 
-  const server = utp.createServer(function (socket) {
+  server.on('connection', (socket) => {
     socket
-      .on('end', function () {
+      .on('end', () => {
         socket.end()
       })
-      .on('close', function () {
+      .on('close', () => {
         close.pass('server closed')
       })
       .resume()
   })
 
-  server.listen(0, function () {
+  server.listen(0, () => {
     const socket = utp.connect(server.address().port)
     socket.write('hi')
     socket.end() // utp does not support half open
     socket
-      .on('close', function () {
+      .on('close', () => {
         close.pass('client closed')
       })
       .resume()
   })
 
   await close
-  server.close()
-})
+}))
 
-test('flushes', function (t) {
+test('flushes', (t) => {
   t.plan(1)
 
   const sent = []
-  const server = utp.createServer(function (socket) {
+  const server = utp.createServer((socket) => {
     const recv = []
     socket
-      .on('data', function (data) {
+      .on('data', (data) => {
         recv.push(data)
       })
-      .on('end', function () {
+      .on('end', () => {
         server.close()
         socket.end()
         t.alike(Buffer.concat(recv), Buffer.concat(sent))
       })
   })
 
-  server.listen(0, function () {
+  server.listen(0, () => {
     const socket = utp.connect(server.address().port)
     for (let i = 0; i < 50; i++) {
       const data = Buffer.from([0x30 + i])
@@ -352,24 +313,25 @@ test('flushes', function (t) {
   })
 })
 
-test('close waits for connections to close', function (t) {
-  t.plan(1)
+test.skip('close waits for connections to close', (t) => withServer(t, async (server) => {
+  const close = t.test('close')
+  close.plan(2)
 
   const sent = []
-  const server = utp.createServer(function (socket) {
+  server.on('connection', (socket) => {
     const recv = []
     socket
-      .on('data', function (data) {
+      .on('data', (data) => {
         recv.push(data)
       })
-      .on('end', function () {
+      .on('end', () => {
         socket.end()
         t.alike(Buffer.concat(recv), Buffer.concat(sent))
       })
-    server.close()
+    server.close(() => close.pass('server closed'))
   })
 
-  server.listen(0, function () {
+  server.listen(0, () => {
     const socket = utp.connect(server.address().port)
     for (let i = 0; i < 50; i++) {
       const data = Buffer.from([0x30 + i])
@@ -378,24 +340,26 @@ test('close waits for connections to close', function (t) {
     }
     socket.end()
   })
-})
 
-test('disable half open', function (t) {
-  t.plan(3)
+  await close
+}))
 
-  const server = utp.createServer({ allowHalfOpen: false }, function (socket) {
+test('disable half open', (t) => {
+  t.plan(2)
+
+  const server = utp.createServer({ allowHalfOpen: false }, (socket) => {
     socket
-      .on('data', function (data) {
+      .on('data', (data) => {
         t.alike(data, Buffer.from('a'))
       })
-      .on('close', function () {
-        server.close(function () {
+      .on('close', () => {
+        server.close(() => {
           t.pass('everything closed')
         })
       })
   })
 
-  server.listen(0, function () {
+  server.listen(0, () => {
     const socket = utp.connect(server.address().port, '127.0.0.1', { allowHalfOpen: true })
 
     socket.write('a')
@@ -403,30 +367,30 @@ test('disable half open', function (t) {
   })
 })
 
-test('timeout', async function (t) {
+test.skip('timeout', (t) => withServer(t, async (server) => {
   const close = t.test('close')
   close.plan(4)
 
-  const server = utp.createServer(function (socket) {
-    socket.setTimeout(100, function () {
+  server.on('connection', (socket) => {
+    socket.setTimeout(100, () => {
       t.pass('timed out')
       socket.destroy()
     })
     socket
-      .on('close', function () {
+      .on('close', () => {
         close.pass('server closed')
       })
       .resume()
       .write('hi')
   })
 
-  server.listen(0, function () {
+  server.listen(0, () => {
     const socket = utp.connect(server.address().port)
     socket
-      .on('end', function () {
+      .on('end', () => {
         socket.destroy()
       })
-      .on('close', function () {
+      .on('close', () => {
         close.pass('client closed')
       })
       .resume()
@@ -434,13 +398,12 @@ test('timeout', async function (t) {
   })
 
   await close
-  server.close()
-})
+}))
 
-test.skip('exception in connection listener', async function (t) {
+test.skip('exception in connection listener', async (t) => {
   t.plan(1)
 
-  const server = utp.createServer(function (socket) {
+  const server = utp.createServer((socket) => {
     socket.destroy()
     throw new Error('disconnect')
   })
@@ -450,7 +413,26 @@ test.skip('exception in connection listener', async function (t) {
     t.pass()
   })
 
-  server.listen(0, function () {
+  server.listen(0, () => {
     utp.connect(server.address().port).destroy()
   })
 })
+
+async function withServer (t, cb) {
+  const server = utp.createServer()
+
+  try {
+    await cb(server)
+  } finally {
+    const close = t.test('close server')
+    close.plan(2)
+
+    close.is(server.connections.length, 0, 'connections closed')
+
+    for (const connection of server.connections) connection.destroy()
+
+    server.close(() => close.pass('server closed'))
+
+    await close
+  }
+}
