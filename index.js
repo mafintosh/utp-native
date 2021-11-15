@@ -124,21 +124,10 @@ const Socket = module.exports = class Socket extends EventEmitter {
   }
 
   close (cb) {
-    if (this._socket.closed) return cb && cb(null)
-    if (cb) this.once('close', cb)
-    if (this._socket.closing) return
-
     this._socket.close((err) => {
       if (err) this.emit('error', err)
       if (cb) cb(null)
     })
-  }
-
-  _closeMaybe () {
-    // if (this._closing && !this.connections.length && !this._sending.length && this._inited && !this._closed) {
-    //   this._closed = true
-    //   binding.utp_napi_close(this._handle)
-    // }
   }
 
   _resolveAndSend (buf, offset, len, port, host, cb) {
@@ -153,10 +142,6 @@ const Socket = module.exports = class Socket extends EventEmitter {
       if (err) this.emit('error', err)
       else this.bind(port, ip)
     })
-  }
-
-  _onsend () {
-    if (this._socket.closing) this._closeMaybe()
   }
 
   _onconnection (port, ip, handle) {
