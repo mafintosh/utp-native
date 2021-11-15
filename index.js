@@ -248,9 +248,11 @@ class Connection extends Duplex {
   }
 
   _final (cb) {
-    this._connection.shutdown()
-    this._destroyMaybe()
-    cb(null)
+    this._connection.shutdown((err) => {
+      if (err) return cb(err)
+      this._destroyMaybe()
+      cb(null)
+    })
   }
 
   _writev (datas, cb) {
