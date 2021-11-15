@@ -71,7 +71,6 @@ typedef struct {
   napi_ref on_close;
   napi_ref on_connect;
   napi_ref realloc;
-  bool destroyed;
 } utp_napi_connection_t;
 
 typedef struct {
@@ -228,8 +227,6 @@ on_utp_firewall (utp_callback_arguments *a) {
 
 inline static void
 utp_napi_connection_destroy (utp_napi_connection_t *self) {
-  if (self->destroyed) return;
-
   UTP_NAPI_CALLBACK(self->on_close, {
     NAPI_MAKE_CALLBACK(env, NULL, ctx, callback, 0, NULL, NULL)
   })
@@ -237,7 +234,6 @@ utp_napi_connection_destroy (utp_napi_connection_t *self) {
   self->env = env;
   self->buf.base = NULL;
   self->buf.len = 0;
-  self->destroyed = true;
 
   napi_delete_reference(self->env, self->ctx);
   napi_delete_reference(self->env, self->on_read);
@@ -270,7 +266,6 @@ on_utp_state_change (utp_callback_arguments *a) {
     }
 
     case UTP_STATE_EOF: {
-      if (self->destroyed) return 0;
       if (self->recv_packet_size) {
         UTP_NAPI_CALLBACK(self->on_read, {
           napi_value ret;
