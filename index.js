@@ -130,6 +130,7 @@ const Socket = module.exports = class Socket extends EventEmitter {
 
     this._socket.close((err) => {
       if (err) this.emit('error', err)
+      if (cb) cb(null)
     })
   }
 
