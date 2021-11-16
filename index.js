@@ -9,7 +9,7 @@ const binding = require('./lib/binding')
 const UTPConnection = require('./lib/utp-connection')
 const UTPSocket = require('./lib/utp-socket')
 
-const Socket = module.exports = class Socket extends EventEmitter {
+class Socket extends EventEmitter {
   constructor (opts) {
     super()
 
@@ -94,11 +94,14 @@ const Socket = module.exports = class Socket extends EventEmitter {
   send (buf, offset, len, port, host, onsent) {
     if (!this._socket.bound) this.bind()
     if (!net.isIPv4(host)) return this._resolveAndSend(buf, offset, len, port, host, onsent)
-    if (this._socket.closed || this._socket.closing) throw new Error('Socket is closed')
 
-    const request = this._socket.send(buf, offset, len, port, host)
+    try {
+      const request = this._socket.send(buf, offset, len, port, host)
 
-    if (onsent) request.onsent = onsent
+      if (onsent) request.onsent = onsent
+    } catch (err) {
+      if (onsent) onsent(err)
+    }
   }
 
   bind (port, ip, onlistening) {
@@ -115,6 +118,7 @@ const Socket = module.exports = class Socket extends EventEmitter {
     }
 
     if (onlistening) this.once('listening', onlistening)
+
     if (!net.isIPv4(ip)) return this._resolveAndBind(port, ip)
 
     this._address = ip
@@ -180,7 +184,7 @@ const Socket = module.exports = class Socket extends EventEmitter {
   }
 }
 
-Socket.Socket = Socket
+module.exports = Socket.Socket = Socket
 
 class Connection extends Duplex {
   constructor (socket, connection, port, address, halfOpen) {
