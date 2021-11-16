@@ -227,13 +227,17 @@ class Connection extends Duplex {
     else this._opening = cb
   }
 
-  _predestroy () {
+  _continueOpen (err) {
     const cb = this._opening
 
     if (cb) {
       this._opening = null
-      cb(new Error('Socket was destroyed'))
+      cb(err)
     }
+  }
+
+  _predestroy () {
+    this._continueOpen(new Error('Socket was destroyed'))
   }
 
   _destroy (cb) {
@@ -297,13 +301,7 @@ class Connection extends Duplex {
   }
 
   _onconnect () {
-    const cb = this._opening
-
-    if (cb) {
-      this._opening = null
-      cb(null)
-    }
-
+    this._continueOpen()
     this.emit('connect')
   }
 
