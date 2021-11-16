@@ -49,6 +49,34 @@ test('server + connect with resolve', (t) => withServer(t, async (server) => {
   await close
 }))
 
+test('emits end and close', (t) => withServer(t, async (server) => {
+  const end = t.test('end')
+  end.plan(4)
+
+  server.on('connection', (socket) => {
+    socket
+      .on('end', () => {
+        end.pass('server socket ended')
+        socket.end()
+      })
+      .on('close', () => {
+        end.pass('server socket closed')
+      })
+      .resume()
+  })
+
+  server.listen(() => {
+    const socket = utp.connect(server.address().port)
+    socket
+      .on('end', () => end.pass('client socket ended'))
+      .on('connect', () => socket.end())
+      .on('close', () => end.pass('client socket closed'))
+      .resume()
+  })
+
+  await end
+}))
+
 test('bad resolve', (t) => {
   t.plan(2)
 
@@ -334,7 +362,7 @@ test('timeout', (t) => withServer(t, async (server) => {
     socket
       .on('close', () => close.pass('server closed'))
       .setTimeout(100, () =>
-        socket.end() // .destroy() causes ECONNRESET
+        socket.destroy() // .end hangs?
       )
   })
 

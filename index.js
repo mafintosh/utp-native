@@ -205,7 +205,6 @@ class Connection extends Duplex {
     this._view = new Uint32Array(this._connection._handle.buffer, this._connection._handle.byteOffset, 2)
     this._timeout = null
     this._contentSize = 0
-    this._allowOpen = halfOpen ? 2 : 1
 
     this._opening = null
     this._destroying = null
@@ -224,6 +223,8 @@ class Connection extends Duplex {
     ) {
       this._socket.firewall(true)
     }
+
+    if (!halfOpen) this.on('end', () => this.end())
   }
 
   setTimeout (ms, ontimeout) {
@@ -286,13 +287,8 @@ class Connection extends Duplex {
     }
   }
 
-  _destroyMaybe () {
-    if (this._allowOpen && !--this._allowOpen) this.destroy()
-  }
-
   _final (cb) {
     this._connection.shutdown()
-    this._destroyMaybe()
     cb(null)
   }
 
@@ -339,7 +335,6 @@ class Connection extends Duplex {
   _onend () {
     if (this._timeout) this._timeout.destroy()
     this.push(null)
-    this._destroyMaybe()
   }
 
   _onconnect () {
