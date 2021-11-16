@@ -16,7 +16,7 @@ test('server + connect', (t) => withServer(t, async (server) => {
     const socket = utp.connect(server.address().port)
     socket
       .on('connect', () => {
-        socket.end() // .destroy hangs?
+        socket.end() // .destroy() hangs?
         close.pass('client socket connected')
       })
       .on('close', () => close.pass('client socket closed'))
@@ -67,12 +67,52 @@ test('emits end and close', (t) => withServer(t, async (server) => {
   server.listen(() => {
     const socket = utp.connect(server.address().port)
     socket
-      .on('end', () => end.pass('client socket ended'))
       .on('connect', () => socket.end())
+      .on('end', () => end.pass('client socket ended'))
       .on('close', () => end.pass('client socket closed'))
   })
 
   await end
+}))
+
+test.skip('client immediately destroys', (t) => withServer(t, async (server) => {
+  const close = t.test('close sockets')
+  close.plan(2)
+
+  server.on('connection', (socket) => {
+    socket.on('close', () => close.pass('server socket closed'))
+  })
+
+  server.listen(() => {
+    const socket = utp.connect(server.address().port)
+    socket
+      .on('close', () => close.pass('client socket closed'))
+      .write('foo')
+    socket.destroy()
+  })
+
+  await close
+}))
+
+test('server immediately destroys', (t) => withServer(t, async (server) => {
+  const close = t.test('close sockets')
+  close.plan(2)
+
+  server.on('connection', (socket) => {
+    socket
+      .on('close', () => close.pass('server socket closed'))
+      .destroy()
+  })
+
+  server.listen(() => {
+    const socket = utp.connect(server.address().port)
+    socket
+      .on('close', () => close.pass('client socket closed'))
+      .on('error', () => { /* UTP_ECONNRESET */ })
+      .write('foo')
+  })
+
+  await close
 }))
 
 test('bad resolve', (t) => {
@@ -359,9 +399,7 @@ test('timeout', (t) => withServer(t, async (server) => {
   server.on('connection', (socket) => {
     socket
       .on('close', () => close.pass('server closed'))
-      .setTimeout(100, () =>
-        socket.destroy() // .end hangs?
-      )
+      .setTimeout(100, () => socket.destroy())
   })
 
   server.listen(() => {
