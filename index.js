@@ -300,7 +300,7 @@ class Connection extends Duplex {
     const cb = this._opening
 
     if (cb) {
-      this._openning = null
+      this._opening = null
       cb(null)
     }
 
