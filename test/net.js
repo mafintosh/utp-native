@@ -9,7 +9,7 @@ test('server + connect', (t) => withServer(t, async (server) => {
     close.pass('server socket connected')
     socket
       .on('close', () => close.pass('server socket closed'))
-      .end() // .destroy() causes ECONNRESET?
+      .end() // .destroy() causes SIGSEGV?
   })
 
   server.listen(() => {
@@ -34,7 +34,7 @@ test('server + connect with resolve', (t) => withServer(t, async (server) => {
     close.pass('server socket connected')
     socket
       .on('close', () => close.pass('server socket closed'))
-      .end() // .destroy() causes ECONNRESET?
+      .end() // .destroy() causes SIGSEGV?
   })
 
   server.listen(() => {
@@ -51,7 +51,7 @@ test('server + connect with resolve', (t) => withServer(t, async (server) => {
   await close
 }))
 
-test('bad resolve', (t) => {
+test.skip('bad resolve', (t) => {
   t.plan(2)
 
   const socket = utp.connect(10000, 'domain.does-not-exist')
@@ -61,7 +61,7 @@ test('bad resolve', (t) => {
     .on('close', () => t.pass('closed'))
 })
 
-test('server listens on a port in use', (t) => withServer(t, (a) => withServer(t, async (b) => {
+test.skip('server listens on a port in use', (t) => withServer(t, (a) => withServer(t, async (b) => {
   const error = t.test('error on listen')
   error.plan(1)
 
@@ -341,23 +341,23 @@ test('timeout', (t) => withServer(t, async (server) => {
   await close
 }))
 
-// test.skip('exception in connection listener', async (t) => {
-//   t.plan(1)
+test.skip('exception in connection listener', async (t) => {
+  t.plan(1)
 
-//   const server = utp.createServer((socket) => {
-//     socket.destroy()
-//     throw new Error('disconnect')
-//   })
+  const server = utp.createServer((socket) => {
+    socket.destroy()
+    throw new Error('disconnect')
+  })
 
-//   process.once('uncaughtException', () => {
-//     server.close()
-//     t.pass()
-//   })
+  process.once('uncaughtException', () => {
+    server.close()
+    t.pass()
+  })
 
-//   server.listen(() => {
-//     utp.connect(server.address().port).destroy()
-//   })
-// })
+  server.listen(() => {
+    utp.connect(server.address().port).destroy()
+  })
+})
 
 async function withServer (t, cb) {
   const server = utp.createServer()
