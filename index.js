@@ -19,8 +19,8 @@ const Socket = module.exports = class Socket extends EventEmitter {
     this._socket = new UTPSocket()
     this._allowHalfOpen = !opts || opts.allowHalfOpen !== false
 
-    this._socket
-      .on('connection', this._onconnection.bind(this))
+    this._socket.onconnection = this._onconnection.bind(this)
+    this._socket.onclose = this._onclose.bind(this)
   }
 
   firewall (enable) {
@@ -90,7 +90,7 @@ const Socket = module.exports = class Socket extends EventEmitter {
   }
 
   send (buf, offset, len, port, host, cb) {
-    if (!this._socket.bound) this._socket.bind()
+    if (!this._socket.bound) this.bind()
     if (!net.isIPv4(host)) return this._resolveAndSend(buf, offset, len, port, host, cb)
     if (this._closing) return cb(new Error('Socket is closed'))
   }
@@ -113,21 +113,21 @@ const Socket = module.exports = class Socket extends EventEmitter {
 
     this._address = ip
 
-    this._socket.bind(port, ip, (err) => {
-      if (err) {
-        this._address = null
-        this.emit('error', err)
-      } else {
-        this.emit('listening')
-      }
-    })
+    try {
+      this._socket.bind(port, ip)
+      this.emit('listening')
+    } catch (err) {
+      this._address = null
+      this.emit('error', err)
+    }
   }
 
   close (cb) {
-    this._socket.close((err) => {
-      if (err) this.emit('error', err)
-      if (cb) cb(null)
-    })
+    if (this._socket.closed) return cb()
+
+    if (cb) this.once('close', cb)
+
+    this._socket.close()
   }
 
   _resolveAndSend (buf, offset, len, port, host, cb) {
@@ -146,6 +146,10 @@ const Socket = module.exports = class Socket extends EventEmitter {
 
   _onconnection (port, ip, handle) {
     this.emit('connection', new Connection(this, handle, port, ip, this._allowHalfOpen))
+  }
+
+  _onclose () {
+    this.emit('close')
   }
 
   static createServer (opts, onconnection) {
@@ -184,10 +188,9 @@ class Connection extends Duplex {
     this._contentSize = 0
     this._allowOpen = halfOpen ? 2 : 1
 
-    this._connection
-      .on('data', (buffer) => this._onread(buffer))
-      .on('end', () => this._onend())
-      .on('connect', () => this._onconnect())
+    this._connection.ondata = this._ondata.bind(this)
+    this._connection.onend = this._onend.bind(this)
+    this._connection.onconnect = this._onconnect.bind(this)
   }
 
   setTimeout (ms, ontimeout) {
@@ -218,7 +221,7 @@ class Connection extends Duplex {
   _open (cb) {
     if (this._connection.connected) cb(null)
     else {
-      this._connection.once('connect', () => {
+      this.once('connect', () => {
         if (this._timeout) this._timeout.refresh()
         cb(null)
       })
@@ -226,7 +229,8 @@ class Connection extends Duplex {
   }
 
   _destroy (cb) {
-    this._connection.close(cb)
+    this._connection.onclose = cb
+    this._connection.close()
   }
 
   _destroyMaybe () {
@@ -234,11 +238,9 @@ class Connection extends Duplex {
   }
 
   _final (cb) {
-    this._connection.shutdown((err) => {
-      if (err) return cb(err)
-      this._destroyMaybe()
-      cb(null)
-    })
+    this._connection.shutdown()
+    this._destroyMaybe()
+    cb(null)
   }
 
   _writev (datas, cb) {
@@ -257,9 +259,7 @@ class Connection extends Duplex {
     this.remotePort = port
     this.remoteAddress = ip
 
-    this._connection.connect(port, ip, (err) => {
-      if (err) this.emit('error', err)
-    })
+    this._connection.connect(port, ip)
   }
 
   _resolveAndConnect (port, host) {
@@ -273,7 +273,7 @@ class Connection extends Duplex {
     this.emit('timeout')
   }
 
-  _onread (buffer) {
+  _ondata (buffer) {
     if (this._timeout) this._timeout.refresh()
 
     let size = buffer.byteLength
