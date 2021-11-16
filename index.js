@@ -3,6 +3,7 @@ const net = require('net')
 const dns = require('dns')
 const { Duplex } = require('streamx')
 const timeout = require('timeout-refresh')
+const set = require('unordered-set')
 const b4a = require('b4a')
 const binding = require('./lib/binding')
 const UTPConnection = require('./lib/utp-connection')
@@ -204,6 +205,15 @@ class Connection extends Duplex {
     this._connection.onend = this._onend.bind(this)
     this._connection.onconnect = this._onconnect.bind(this)
     this._connection.onclose = this._onclose.bind(this)
+
+    set.add(this._socket.connections, this)
+
+    if (
+      this._socket.maxConnections > 0 &&
+      this._socket.connections.length >= this._socket.maxConnections
+    ) {
+      this._socket.firewall(true)
+    }
   }
 
   setTimeout (ms, ontimeout) {
@@ -250,6 +260,15 @@ class Connection extends Duplex {
   }
 
   _destroy (cb) {
+    set.remove(this._socket.connections, this)
+
+    if (
+      this._socket.maxConnections <= 0 ||
+      this._socket.connections.length < this._socket.maxConnections
+    ) {
+      this._socket.firewall(false)
+    }
+
     if (this._connection.closed) cb(null)
     else {
       this._destroying = cb
