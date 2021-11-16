@@ -9,7 +9,7 @@ test('server + connect', (t) => withServer(t, async (server) => {
     close.pass('server socket connected')
     socket
       .on('close', () => close.pass('server socket closed'))
-      .end() // .destroy() causes UTP_ECONNRESET?
+      .end()
   })
 
   server.listen(() => {
@@ -33,7 +33,7 @@ test('server + connect with resolve', (t) => withServer(t, async (server) => {
     close.pass('server socket connected')
     socket
       .on('close', () => close.pass('server socket closed'))
-      .end() // .destroy() causes UTP_ECONNRESET?
+      .end()
   })
 
   server.listen(() => {
