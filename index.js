@@ -30,7 +30,7 @@ class Socket extends EventEmitter {
   }
 
   address () {
-    if (!this._address || this._closing) throw new Error('Socket not bound')
+    if (!this._socket.bound || this._socket.closing) throw new Error('Socket not bound')
     return {
       address: this._address,
       family: 'IPv4',
@@ -39,32 +39,32 @@ class Socket extends EventEmitter {
   }
 
   getRecvBufferSize () {
-    if (!this._inited) throw new Error('getRecvBufferSize EBADF')
-    if (this._closing) return 0
+    if (!this._socket.inited) throw new Error('getRecvBufferSize EBADF')
+    if (this._socket.closing) return 0
     return binding.utp_napi_recv_buffer(this._socket._handle, 0)
   }
 
   setRecvBufferSize (n) {
-    if (!this._inited) throw new Error('setRecvBufferSize EBADF')
-    if (this._closing) return 0
+    if (!this._socket.inited) throw new Error('setRecvBufferSize EBADF')
+    if (this._socket.closing) return 0
     return binding.utp_napi_recv_buffer(this._socket._handle, n)
   }
 
   getSendBufferSize () {
-    if (!this._inited) throw new Error('getSendBufferSize EBADF')
-    if (this._closing) return 0
+    if (!this._socket.inited) throw new Error('getSendBufferSize EBADF')
+    if (this._socket.closing) return 0
     return binding.utp_napi_send_buffer(this._socket._handle, 0)
   }
 
   setSendBufferSize (n) {
-    if (!this._inited) throw new Error('setSendBufferSize EBADF')
-    if (this._closing) return 0
+    if (!this._socket.inited) throw new Error('setSendBufferSize EBADF')
+    if (this._socket.closing) return 0
     return binding.utp_napi_send_buffer(this._socket._handle, n)
   }
 
   setTTL (ttl) {
-    if (!this._inited) throw new Error('setTTL EBADF')
-    if (this._closing) return
+    if (!this._socket.inited) throw new Error('setTTL EBADF')
+    if (this._socket.closing) return
     binding.utp_napi_set_ttl(this._socket._handle, ttl)
   }
 

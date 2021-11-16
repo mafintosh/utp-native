@@ -641,12 +641,12 @@ NAPI_METHOD(utp_napi_connection_init) {
   return NULL;
 }
 
-NAPI_METHOD(utp_napi_connection_on_close) {
-  // To trigger a manual teardown if connect was never called
-  // on a client connection
+NAPI_METHOD(utp_napi_connection_destroy) {
   NAPI_ARGV(1)
   NAPI_ARGV_BUFFER_CAST(utp_napi_connection_t *, self, 0)
+
   utp_napi_connection_destroy(self);
+
   return NULL;
 }
 
@@ -734,6 +734,6 @@ NAPI_INIT() {
   NAPI_EXPORT_FUNCTION(utp_napi_connection_writev)
   NAPI_EXPORT_FUNCTION(utp_napi_connection_close)
   NAPI_EXPORT_FUNCTION(utp_napi_connection_shutdown)
-  NAPI_EXPORT_FUNCTION(utp_napi_connection_on_close)
+  NAPI_EXPORT_FUNCTION(utp_napi_connection_destroy)
   NAPI_EXPORT_FUNCTION(utp_napi_connect)
 }
