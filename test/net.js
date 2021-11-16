@@ -62,7 +62,6 @@ test('emits end and close', (t) => withServer(t, async (server) => {
       .on('close', () => {
         end.pass('server socket closed')
       })
-      .resume()
   })
 
   server.listen(() => {
@@ -71,7 +70,6 @@ test('emits end and close', (t) => withServer(t, async (server) => {
       .on('end', () => end.pass('client socket ended'))
       .on('connect', () => socket.end())
       .on('close', () => end.pass('client socket closed'))
-      .resume()
   })
 
   await end
@@ -369,7 +367,7 @@ test('timeout', (t) => withServer(t, async (server) => {
   server.listen(() => {
     const socket = utp.connect(server.address().port)
     socket
-      .on('end', () => socket.end()) // no .end() hangs?
+      .on('end', () => socket.end())
       .on('close', () => close.pass('client closed'))
       .write('hello') // why required?
   })
