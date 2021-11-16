@@ -90,12 +90,14 @@ const Socket = module.exports = class Socket extends EventEmitter {
     this.firewall(false)
   }
 
-  send (buf, offset, len, port, host, cb) {
+  send (buf, offset, len, port, host, onsent) {
     if (!this._socket.bound) this.bind()
-    if (!net.isIPv4(host)) return this._resolveAndSend(buf, offset, len, port, host, cb)
-    if (this._socket.closed || this._socket.closing) return cb(new Error('Socket is closed'))
+    if (!net.isIPv4(host)) return this._resolveAndSend(buf, offset, len, port, host, onsent)
+    if (this._socket.closed || this._socket.closing) throw new Error('Socket is closed')
 
-    this._socket.send(buf, offset, len, port, host, cb)
+    const request = this._socket.send(buf, offset, len, port, host)
+
+    if (onsent) request.onsent = onsent
   }
 
   bind (port, ip, onlistening) {
@@ -133,10 +135,10 @@ const Socket = module.exports = class Socket extends EventEmitter {
     this._socket.close()
   }
 
-  _resolveAndSend (buf, offset, len, port, host, cb) {
+  _resolveAndSend (buf, offset, len, port, host, onsent) {
     dns.lookup(host, { family: 4 }, (err, ip) => {
-      if (err) cb(err)
-      else this.send(buf, offset, len, port, ip, cb)
+      if (err) this.emit('error', err)
+      else this.send(buf, offset, len, port, ip, onsent)
     })
   }
 
