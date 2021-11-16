@@ -61,7 +61,7 @@ test('bad resolve', (t) => {
     .on('close', () => t.pass('closed'))
 })
 
-test.skip('server listens on a port in use', (t) => withServer(t, (a) => withServer(t, async (b) => {
+test('server listens on a port in use', (t) => withServer(t, (a) => withServer(t, async (b) => {
   const error = t.test('error on listen')
   error.plan(1)
 
