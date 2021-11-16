@@ -20,6 +20,7 @@ const Socket = module.exports = class Socket extends EventEmitter {
     this._allowHalfOpen = !opts || opts.allowHalfOpen !== false
 
     this._socket.onconnection = this._onconnection.bind(this)
+    this._socket.onmessage = this._onmessage.bind(this)
     this._socket.onclose = this._onclose.bind(this)
   }
 
@@ -92,7 +93,9 @@ const Socket = module.exports = class Socket extends EventEmitter {
   send (buf, offset, len, port, host, cb) {
     if (!this._socket.bound) this.bind()
     if (!net.isIPv4(host)) return this._resolveAndSend(buf, offset, len, port, host, cb)
-    if (this._closing) return cb(new Error('Socket is closed'))
+    if (this._socket.closed || this._socket.closing) return cb(new Error('Socket is closed'))
+
+    this._socket.send(buf, offset, len, port, host, cb)
   }
 
   bind (port, ip, onlistening) {
@@ -101,7 +104,7 @@ const Socket = module.exports = class Socket extends EventEmitter {
     if (!port) port = 0
     if (!ip) ip = '0.0.0.0'
 
-    if (this._socket.closing) return
+    if (this._socket.closed || this._socket.closing) return
 
     if (this._address) {
       this.emit('error', new Error('Socket already bound'))
@@ -146,6 +149,10 @@ const Socket = module.exports = class Socket extends EventEmitter {
 
   _onconnection (port, ip, handle) {
     this.emit('connection', new Connection(this, handle, port, ip, this._allowHalfOpen))
+  }
+
+  _onmessage (buffer, address) {
+    this.emit('message', buffer, address)
   }
 
   _onclose () {
