@@ -51,7 +51,7 @@ test('server + connect with resolve', (t) => withServer(t, async (server) => {
   await close
 }))
 
-test.skip('bad resolve', (t) => {
+test('bad resolve', (t) => {
   t.plan(2)
 
   const socket = utp.connect(10000, 'domain.does-not-exist')
