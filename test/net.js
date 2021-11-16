@@ -103,13 +103,13 @@ test('echo server back and fourth', (t) => withServer(t, async (server) => {
   let echoed = 0
 
   server.on('connection', (socket) => {
-    socket.pipe(socket)
     socket
       .on('data', (data) => {
         echoed++
         writes.alike(data, Buffer.from('hello'))
       })
       .on('close', () => writes.pass('server socket closed'))
+      .pipe(socket)
   })
 
   server.listen(() => {
@@ -132,88 +132,100 @@ test('echo server back and fourth', (t) => withServer(t, async (server) => {
   t.is(echoed, 10)
 }))
 
-test.skip('echo big message', (t) => withServer(t, async (server) => {
+test('echo big message', (t) => withServer(t, async (server) => {
   const writes = t.test('write and close sockets')
-  writes.plan(2)
+  writes.plan(3)
 
   let packets = 0
 
-  const big = Buffer.alloc(8 * 1024 * 1024)
-  big.fill('yolo')
+  const sending = Buffer.alloc(8 * 1024 * 1024)
+  sending.fill('yolo')
 
   server.on('connection', (socket) => {
-    socket.on('data', () => packets++)
-    socket.pipe(socket)
+    socket
+      .on('data', () => packets++)
+      .on('close', () => writes.pass('server socket closed'))
+      .pipe(socket)
   })
 
   server.listen(() => {
     const then = Date.now()
     const socket = utp.connect(server.address().port)
-    const buffer = Buffer.alloc(big.length)
+    const buffer = Buffer.alloc(sending.length)
 
-    let ptr = 0
+    let total = 0
 
-    socket.write(big)
-    socket.on('data', (data) => {
-      packets++
-      data.copy(buffer, ptr)
-      ptr += data.length
-      if (big.length === ptr) {
-        socket.end()
-        t.alike(buffer, big)
-        t.pass('echo took ' + (Date.now() - then) + 'ms (' + packets + ' packets)')
-      }
-    })
+    socket
+      .on('data', (data) => {
+        packets++
+        data.copy(buffer, total)
+        total += data.length
+
+        if (sending.length === total) {
+          writes.alike(buffer, sending)
+          writes.comment('echo took ' + (Date.now() - then) + 'ms (' + packets + ' packets)')
+          socket.end()
+        }
+      })
+      .on('close', () => writes.pass('client socket closed'))
+      .write(sending)
   })
 
   await writes
 }))
 
-test.skip('echo big message with setContentSize', (t) => withServer(t, async (server) => {
+test('echo big message with setContentSize', (t) => withServer(t, async (server) => {
   const writes = t.test('write and close sockets')
-  writes.plan(2)
+  writes.plan(3)
 
   let packets = 0
 
-  const big = Buffer.alloc(8 * 1024 * 1024)
-  big.fill('yolo')
+  const sending = Buffer.alloc(8 * 1024 * 1024)
+  sending.fill('yolo')
 
   server.on('connection', (socket) => {
-    socket.setContentSize(big.length)
-    socket.on('data', () => packets++)
-    socket.pipe(socket)
+    socket.setContentSize(sending.length)
+    socket
+      .on('data', () => packets++)
+      .on('close', () => writes.pass('server socket closed'))
+      .pipe(socket)
   })
 
   server.listen(() => {
     const then = Date.now()
     const socket = utp.connect(server.address().port)
-    const buffer = Buffer.alloc(big.length)
+    const buffer = Buffer.alloc(sending.length)
 
-    let ptr = 0
+    let total = 0
 
-    socket.setContentSize(big.length)
-    socket.write(big)
-    socket.on('data', (data) => {
-      packets++
-      data.copy(buffer, ptr)
-      ptr += data.length
-      if (big.length === ptr) {
-        socket.end()
-        t.alike(buffer, big)
-        t.pass('echo took ' + (Date.now() - then) + 'ms (' + packets + ' packets)')
-      }
-    })
+    socket.setContentSize(sending.length)
+    socket
+      .on('data', (data) => {
+        packets++
+        data.copy(buffer, total)
+        total += data.length
+
+        if (sending.length === total) {
+          writes.alike(buffer, sending)
+          writes.comment('echo took ' + (Date.now() - then) + 'ms (' + packets + ' packets)')
+          socket.end()
+        }
+      })
+      .on('close', () => writes.pass('client socket closed'))
+      .write(sending)
   })
 
   await writes
 }))
 
-test.skip('two connections', async (t) => {
+test('two connections', (t) => withServer(t, async (server) => {
   const writes = t.test('write and close sockets')
-  writes.plan(4)
+  writes.plan(6)
 
-  const server = utp.createServer((socket) => {
-    socket.pipe(socket)
+  server.on('connection', (socket) => {
+    socket
+      .on('close', () => writes.pass('server socket closed'))
+      .pipe(socket)
   })
 
   server.listen(() => {
@@ -232,7 +244,7 @@ test.skip('two connections', async (t) => {
   })
 
   await writes
-})
+}))
 
 test('flushes', (t) => withServer(t, async (server) => {
   const writes = t.test('writes')
@@ -262,7 +274,7 @@ test('flushes', (t) => withServer(t, async (server) => {
   await writes
 }))
 
-test.skip('close waits for connections to close', (t) => withServer(t, async (server) => {
+test('close waits for connections to close', (t) => withServer(t, async (server) => {
   const close = t.test('close')
   close.plan(2)
 
@@ -270,12 +282,10 @@ test.skip('close waits for connections to close', (t) => withServer(t, async (se
   server.on('connection', (socket) => {
     const recv = []
     socket
-      .on('data', (data) => {
-        recv.push(data)
-      })
+      .on('data', (data) => recv.push(data))
       .on('end', () => {
         socket.end()
-        t.alike(Buffer.concat(recv), Buffer.concat(sent))
+        close.alike(Buffer.concat(recv), Buffer.concat(sent))
       })
     server.close(() => close.pass('server closed'))
   })
