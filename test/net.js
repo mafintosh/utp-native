@@ -115,6 +115,53 @@ test('server immediately destroys', (t) => withServer(t, async (server) => {
   await close
 }))
 
+test('client sends first', (t) => withServer(t, async (server) => {
+  const writes = t.test('write and close sockets')
+  writes.plan(3)
+
+  server.on('connection', (socket) => {
+    socket
+      .on('data', (data) => {
+        writes.alike(data, Buffer.from('foo'))
+        socket.end()
+      })
+      .on('close', () => writes.pass('server socket closed'))
+  })
+
+  server.listen(() => {
+    const socket = utp.connect(server.address().port)
+    socket
+      .on('connect', () => {
+        socket.end('foo')
+      })
+      .on('close', () => writes.pass('client socket closed'))
+  })
+
+  await writes
+}))
+
+test('server sends first', (t) => withServer(t, async (server) => {
+  const writes = t.test('write and close sockets')
+  writes.plan(3)
+
+  server.on('connection', (socket) => {
+    socket
+      .on('close', () => writes.pass('server socket closed'))
+      .on('error', (err) => writes.ok(err))
+      .end('foo')
+  })
+
+  server.listen(() => {
+    const socket = utp.connect(server.address().port)
+    socket
+      .on('close', () => writes.pass('client socket closed'))
+      .on('error', () => { /* UTP_ECONNRESET */ })
+      .end()
+  })
+
+  await writes
+}))
+
 test('bad resolve', (t) => {
   t.plan(2)
 
