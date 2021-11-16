@@ -20,6 +20,7 @@ class Socket extends EventEmitter {
     this._socket = new UTPSocket()
     this._allowHalfOpen = !opts || opts.allowHalfOpen !== false
 
+    this._socket.onerror = this._onerror.bind(this)
     this._socket.onconnection = this._onconnection.bind(this)
     this._socket.onmessage = this._onmessage.bind(this)
     this._socket.onclose = this._onclose.bind(this)
@@ -154,6 +155,10 @@ class Socket extends EventEmitter {
     })
   }
 
+  _onerror (err) {
+    this.emit('error', err)
+  }
+
   _onconnection (port, ip, handle) {
     this.emit('connection', new Connection(this, handle, port, ip, this._allowHalfOpen))
   }
@@ -205,6 +210,7 @@ class Connection extends Duplex {
     this._opening = null
     this._destroying = null
 
+    this._connection.onerror = this._onerror.bind(this)
     this._connection.ondata = this._ondata.bind(this)
     this._connection.onend = this._onend.bind(this)
     this._connection.onconnect = this._onconnect.bind(this)
@@ -310,6 +316,10 @@ class Connection extends Duplex {
 
   _ontimeout () {
     this.emit('timeout')
+  }
+
+  _onerror (err) {
+    this.emit('error', err)
   }
 
   _ondata (buffer) {
