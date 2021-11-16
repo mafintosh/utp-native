@@ -174,7 +174,7 @@ Socket.Socket = Socket
 
 class Connection extends Duplex {
   constructor (socket, connection, port, address, halfOpen) {
-    super()
+    super({ mapWritable: toBuffer })
 
     this.remoteAddress = address
     this.remoteFamily = 'IPv4'
@@ -188,9 +188,13 @@ class Connection extends Duplex {
     this._contentSize = 0
     this._allowOpen = halfOpen ? 2 : 1
 
+    this._opening = null
+    this._destroying = null
+
     this._connection.ondata = this._ondata.bind(this)
     this._connection.onend = this._onend.bind(this)
     this._connection.onconnect = this._onconnect.bind(this)
+    this._connection.onclose = this._onclose.bind(this)
   }
 
   setTimeout (ms, ontimeout) {
@@ -220,17 +224,24 @@ class Connection extends Duplex {
 
   _open (cb) {
     if (this._connection.connected) cb(null)
-    else {
-      this.once('connect', () => {
-        if (this._timeout) this._timeout.refresh()
-        cb(null)
-      })
+    else this._opening = cb
+  }
+
+  _predestroy () {
+    const cb = this._opening
+
+    if (cb) {
+      this._opening = null
+      cb(new Error('Socket was destroyed'))
     }
   }
 
   _destroy (cb) {
-    this._connection.onclose = cb
-    this._connection.close()
+    if (this._connection.closed) cb(null)
+    else {
+      this._destroying = cb
+      this._connection.close()
+    }
   }
 
   _destroyMaybe () {
@@ -243,16 +254,8 @@ class Connection extends Duplex {
     cb(null)
   }
 
-  _writev (datas, cb) {
-    let bufs = new Array(datas.length)
-    for (var i = 0; i < datas.length; i++) {
-      const data = datas[i]
-      bufs[i] = typeof data === 'string' ? b4a.from(data) : data
-    }
-
-    if (bufs.length > 256) bufs = [b4a.concat(bufs)]
-
-    this._connection.writev(bufs, cb)
+  _writev (batch, cb) {
+    this._connection.writev(batch.length > 256 ? [b4a.concat(batch)] : batch, cb)
   }
 
   _connect (port, ip) {
@@ -294,6 +297,28 @@ class Connection extends Duplex {
   }
 
   _onconnect () {
+    const cb = this._opening
+
+    if (cb) {
+      this._openning = null
+      cb(null)
+    }
+
     this.emit('connect')
   }
+
+  _onclose () {
+    const cb = this._destroying
+
+    if (cb) {
+      this._destroying = null
+      cb(null)
+    } else {
+      this.destroy()
+    }
+  }
+}
+
+function toBuffer (data) {
+  return typeof data === 'string' ? b4a.from(data) : data
 }
