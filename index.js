@@ -319,7 +319,7 @@ class Connection extends Duplex {
   }
 
   _onerror (err) {
-    this.emit('error', err)
+    this.destroy(err)
   }
 
   _ondata (buffer) {
