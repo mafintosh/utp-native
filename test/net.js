@@ -20,7 +20,6 @@ test('server + connect', (t) => withServer(t, async (server) => {
         close.pass('client socket connected')
       })
       .on('close', () => close.pass('client socket closed'))
-      .write('hello') // why required?
   })
 
   await close
@@ -45,7 +44,6 @@ test('server + connect with resolve', (t) => withServer(t, async (server) => {
         close.pass('client socket connected')
       })
       .on('close', () => close.pass('client socket closed'))
-      .write('foo') // why required?
   })
 
   await close
