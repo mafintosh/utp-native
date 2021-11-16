@@ -650,20 +650,6 @@ NAPI_METHOD(utp_napi_connection_on_close) {
   return NULL;
 }
 
-NAPI_METHOD(utp_napi_connection_write) {
-  NAPI_ARGV(2)
-  NAPI_ARGV_BUFFER_CAST(utp_napi_connection_t *, self, 0)
-  NAPI_ARGV_BUFFER(buf, 1)
-
-  self->send_buffer_next = self->send_buffer;
-  self->send_buffer_next->iov_base = buf;
-  self->send_buffer_next->iov_len = buf_len;
-  self->send_buffer_missing = 1;
-
-  int drained = utp_napi_connection_drain(self);
-  NAPI_RETURN_UINT32(drained)
-}
-
 NAPI_METHOD(utp_napi_connection_writev) {
   NAPI_ARGV(2)
   NAPI_ARGV_BUFFER_CAST(utp_napi_connection_t *, self, 0)
@@ -745,7 +731,6 @@ NAPI_INIT() {
   NAPI_EXPORT_FUNCTION(utp_napi_send_buffer)
   NAPI_EXPORT_FUNCTION(utp_napi_recv_buffer)
   NAPI_EXPORT_FUNCTION(utp_napi_connection_init)
-  NAPI_EXPORT_FUNCTION(utp_napi_connection_write)
   NAPI_EXPORT_FUNCTION(utp_napi_connection_writev)
   NAPI_EXPORT_FUNCTION(utp_napi_connection_close)
   NAPI_EXPORT_FUNCTION(utp_napi_connection_shutdown)
