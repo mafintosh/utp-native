@@ -97,13 +97,19 @@ test('client immediately destroys', (t) => withServer(t, async (server) => {
   await close
 }))
 
+// The socket socket for some reason never emits the `close` event. The test is
+// therefore skipped for now.
 test.skip('client destroys on connect', (t) => withServer(t, async (server) => {
   const close = t.test('close sockets')
-  close.plan(3)
+  close.plan(4)
 
   server.on('connection', (socket) => {
     close.pass('server socket connected')
     socket
+      .on('end', () => {
+        close.pass('server socket ended')
+        socket.destroy()
+      })
       .on('close', () => close.pass('server socket closed'))
       .resume()
   })
