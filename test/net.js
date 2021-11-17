@@ -501,23 +501,34 @@ test('timeout', (t) => withServer(t, async (server) => {
   await close
 }))
 
-test.skip('exception in connection listener', async (t) => {
-  t.plan(1)
+test.skip('exception in connection listener', (t) => withServer(t, async (server) => {
+  const close = t.test('close sockets')
+  close.plan(3)
 
-  const server = utp.createServer((socket) => {
-    socket.destroy()
-    throw new Error('disconnect')
+  const err = new Error()
+
+  server.on('connection', (socket) => {
+    socket
+      .on('close', () => close.pass('server socket closed'))
+      .resume()
+      .end()
+    throw err
   })
 
-  process.once('uncaughtException', () => {
+  process.once('uncaughtException', (thrown) => {
+    close.is(thrown, err)
     server.close()
-    t.pass()
   })
 
   server.listen(() => {
-    utp.connect(server.address().port).destroy()
+    const socket = utp.connect(server.address().port)
+    socket
+      .on('close', () => close.pass('client socket closed'))
+      .end('foo')
   })
-})
+
+  await close
+}))
 
 async function withServer (t, cb) {
   const server = utp.createServer()

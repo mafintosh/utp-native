@@ -314,12 +314,9 @@ on_utp_accept (utp_callback_arguments *a) {
     napi_value argv[2];
     napi_create_uint32(env, port, &(argv[0]));
     napi_create_string_utf8(env, ip, NAPI_AUTO_LENGTH, &(argv[1]));
-    napi_value next;
-    if (napi_make_callback(env, NULL, ctx, callback, 2, argv, &next) == napi_pending_exception) {
-      napi_value fatal_exception;
-      napi_get_and_clear_last_exception(env, &fatal_exception);
-      napi_fatal_exception(env, fatal_exception);
-    } else {
+    napi_value next = NULL;
+    NAPI_MAKE_CALLBACK(env, NULL, ctx, callback, 2, argv, &next)
+    if (next != NULL) {
       utp_napi_connection_t *connection;
       size_t connection_size;
       napi_get_buffer_info(env, next, (void **) &connection, &connection_size);
