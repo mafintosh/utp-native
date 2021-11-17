@@ -23,7 +23,7 @@
     "napi-macros": "^2.0.0",
     "node-gyp-build": "^4.2.0",
     "queue-tick": "^1.0.0",
-    "streamx": "^2.11.3",
+    "streamx": "^2.12.0",
     "timeout-refresh": "^1.0.0",
     "unordered-set": "^2.0.1"
   },

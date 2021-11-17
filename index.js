@@ -188,7 +188,7 @@ module.exports = Socket.Socket = Socket
 
 class Connection extends Duplex {
   constructor (socket, connection, port, address, halfOpen) {
-    super({ mapWritable: toBuffer })
+    super({ mapWritable: toBuffer, eagerOpen: true })
 
     this.remoteAddress = address
     this.remoteFamily = 'IPv4'
@@ -220,9 +220,6 @@ class Connection extends Duplex {
     }
 
     if (!halfOpen) this.on('end', () => this.end())
-
-    // https://github.com/streamxorg/streamx/pull/49
-    this.resume().pause()
   }
 
   setTimeout (ms, ontimeout) {
