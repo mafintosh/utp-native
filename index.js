@@ -73,18 +73,13 @@ class Socket extends EventEmitter {
     if (!this._socket.bound) this.bind()
     if (!ip) ip = '127.0.0.1'
 
-    const connection = new Connection(
+    return new Connection(
       this,
       null,
       port,
       ip,
       this._allowHalfOpen
     )
-
-    if (!net.isIPv4(ip)) connection._resolveAndConnect(port, ip)
-    else connection._connect(port, ip)
-
-    return connection
   }
 
   listen (port, ip, onlistening) {
@@ -225,6 +220,9 @@ class Connection extends Duplex {
     }
 
     if (!halfOpen) this.on('end', () => this.end())
+
+    // https://github.com/streamxorg/streamx/pull/49
+    this.resume().pause()
   }
 
   setTimeout (ms, ontimeout) {
@@ -253,8 +251,14 @@ class Connection extends Duplex {
   }
 
   _open (cb) {
-    if (this._connection.writable) cb(null)
-    else this._opening = cb
+    if (this._connection.connected) {
+      if (this._connection.writable) return cb(null)
+    } else {
+      if (net.isIPv4(this.remoteAddress)) this._connect()
+      else this._resolveAndConnect()
+    }
+
+    this._opening = cb
   }
 
   _continueOpen (err) {
@@ -296,17 +300,17 @@ class Connection extends Duplex {
     this._connection.writev(batch.length > 256 ? [b4a.concat(batch)] : batch, cb)
   }
 
-  _connect (port, ip) {
-    this.remotePort = port
-    this.remoteAddress = ip
-
-    this._connection.connect(port, ip)
+  _connect () {
+    this._connection.connect(this.remotePort, this.remoteAddress)
   }
 
-  _resolveAndConnect (port, host) {
-    dns.lookup(host, { family: 4 }, (err, ip) => {
+  _resolveAndConnect () {
+    dns.lookup(this.remoteAddress, { family: 4 }, (err, ip) => {
       if (err) this.destroy(err)
-      else this._connect(port, ip)
+      else {
+        this.remoteAddress = ip
+        this._connect()
+      }
     })
   }
 

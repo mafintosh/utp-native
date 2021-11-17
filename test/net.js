@@ -81,7 +81,7 @@ test('emits end and close', (t) => withServer(t, async (server) => {
   await end
 }))
 
-test.skip('client immediately destroys', (t) => withServer(t, async (server) => {
+test('client immediately destroys', (t) => withServer(t, async (server) => {
   const close = t.test('close sockets')
   close.plan(1)
 
