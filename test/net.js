@@ -83,18 +83,37 @@ test('emits end and close', (t) => withServer(t, async (server) => {
 
 test.skip('client immediately destroys', (t) => withServer(t, async (server) => {
   const close = t.test('close sockets')
-  close.plan(2)
+  close.plan(1)
 
-  server.on('connection', (socket) => {
-    socket.on('close', () => close.pass('server socket closed'))
-  })
+  server.on('connection', () => close.fail('server socket connected'))
 
   server.listen(() => {
     const socket = utp.connect(server.address().port)
     socket
       .on('close', () => close.pass('client socket closed'))
+      .destroy()
+  })
+
+  await close
+}))
+
+test.skip('client destroys on connect', (t) => withServer(t, async (server) => {
+  const close = t.test('close sockets')
+  close.plan(3)
+
+  server.on('connection', (socket) => {
+    close.pass('server socket connected')
+    socket
+      .on('close', () => close.pass('server socket closed'))
+      .resume()
+  })
+
+  server.listen(() => {
+    const socket = utp.connect(server.address().port)
+    socket
+      .on('connect', () => socket.destroy())
+      .on('close', () => close.pass('client socket closed'))
       .write('foo')
-    socket.destroy()
   })
 
   await close
