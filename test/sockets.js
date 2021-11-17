@@ -101,7 +101,7 @@ test('combine server and connection', (t) => {
   })
 })
 
-test.skip('both ends write first', async (t) => {
+test('both ends write first', async (t) => {
   const close = t.test('close')
   close.plan(2)
 
