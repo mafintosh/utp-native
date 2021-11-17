@@ -253,7 +253,7 @@ class Connection extends Duplex {
   }
 
   _open (cb) {
-    if (this._connection.connected) cb(null)
+    if (this._connection.writable) cb(null)
     else this._opening = cb
   }
 

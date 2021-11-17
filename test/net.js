@@ -9,6 +9,7 @@ test('server + connect', (t) => withServer(t, async (server) => {
     close.pass('server socket connected')
     socket
       .on('close', () => close.pass('server socket closed'))
+      .resume()
       .end()
   })
 
@@ -16,10 +17,11 @@ test('server + connect', (t) => withServer(t, async (server) => {
     const socket = utp.connect(server.address().port)
     socket
       .on('connect', () => {
-        socket.end() // .destroy() hangs?
+        socket.end()
         close.pass('client socket connected')
       })
       .on('close', () => close.pass('client socket closed'))
+      .write('foo')
   })
 
   await close
@@ -33,6 +35,7 @@ test('server + connect with resolve', (t) => withServer(t, async (server) => {
     close.pass('server socket connected')
     socket
       .on('close', () => close.pass('server socket closed'))
+      .resume()
       .end()
   })
 
@@ -40,10 +43,11 @@ test('server + connect with resolve', (t) => withServer(t, async (server) => {
     const socket = utp.connect(server.address().port, 'localhost')
     socket
       .on('connect', () => {
-        socket.end() // .destroy() hangs?
+        socket.end()
         close.pass('client socket connected')
       })
       .on('close', () => close.pass('client socket closed'))
+      .write('foo')
   })
 
   await close
@@ -62,6 +66,7 @@ test('emits end and close', (t) => withServer(t, async (server) => {
       .on('close', () => {
         end.pass('server socket closed')
       })
+      .resume()
   })
 
   server.listen(() => {
@@ -70,6 +75,7 @@ test('emits end and close', (t) => withServer(t, async (server) => {
       .on('connect', () => socket.end())
       .on('end', () => end.pass('client socket ended'))
       .on('close', () => end.pass('client socket closed'))
+      .write('foo')
   })
 
   await end
@@ -142,21 +148,31 @@ test('client sends first', (t) => withServer(t, async (server) => {
 
 test('server sends first', (t) => withServer(t, async (server) => {
   const writes = t.test('write and close sockets')
-  writes.plan(3)
+  writes.plan(4)
 
   server.on('connection', (socket) => {
     socket
       .on('close', () => writes.pass('server socket closed'))
-      .on('error', (err) => writes.ok(err))
+      .resume()
       .end('foo')
   })
 
   server.listen(() => {
     const socket = utp.connect(server.address().port)
+
+    // Due to https://github.com/bittorrent/libutp/issues/118, the server socket
+    // won't open before the client writes.
+    socket.setTimeout(100, () => {
+      writes.pass('client socket timed out')
+      socket.write('foo')
+    })
+
     socket
+      .on('data', (data) => {
+        writes.alike(data, Buffer.from('foo'))
+        socket.end()
+      })
       .on('close', () => writes.pass('client socket closed'))
-      .on('error', () => { /* UTP_ECONNRESET */ })
-      .end()
   })
 
   await writes
