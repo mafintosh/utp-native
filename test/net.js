@@ -501,7 +501,7 @@ test('timeout', (t) => withServer(t, async (server) => {
   await close
 }))
 
-test.skip('exception in connection listener', (t) => withServer(t, async (server) => {
+test('exception in connection listener', (t) => withServer(t, async (server) => {
   const close = t.test('close sockets')
   close.plan(3)
 

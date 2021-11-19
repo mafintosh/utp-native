@@ -28,7 +28,7 @@
     "unordered-set": "^2.0.1"
   },
   "devDependencies": {
-    "brittle": "^1.6.0",
+    "brittle": "^1.6.1",
     "prebuildify": "^4.1.2",
     "standard": "^14.3.1"
   },
