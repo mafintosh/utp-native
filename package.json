@@ -28,9 +28,9 @@
     "unordered-set": "^2.0.1"
   },
   "devDependencies": {
-    "brittle": "^1.6.1",
+    "brittle": "^2.3.1",
     "prebuildify": "^4.1.2",
-    "standard": "^14.3.1"
+    "standard": "^17.0.0"
   },
   "repository": {
     "type": "git",

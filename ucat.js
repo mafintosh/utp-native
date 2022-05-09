@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 const socket = require('./')({ allowHalfOpen: false })
-var host = null
-var port = 0
+let host = null
+let port = 0
 
-for (var i = 2; i < process.argv.length; i++) {
+for (let i = 2; i < process.argv.length; i++) {
   if (process.argv[i][0] !== '-') {
     const parts = process.argv[i].split(':')
     port = Number(parts.pop()) || 0
