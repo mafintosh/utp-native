@@ -9,8 +9,9 @@
     "test": "standard && tape test/net.js test/sockets.js test/udp.js",
     "install": "node-gyp-build",
     "fetch-libutp": "git submodule update --recursive --init",
-    "prebuild": "prebuildify --napi --strip",
-    "prebuild-ia32": "prebuildify --napi --strip --arch=ia32"
+    "prebuild": "prebuildify --napi --strip --tag-libc",
+    "prebuild-musl": "prebuildify --napi --strip --libc=musl --tag-libc",
+    "prebuild-ia32": "prebuildify --napi --strip --arch=ia32 --tag-libc"
   },
   "bin": {
     "ucat": "./ucat.js"
@@ -28,7 +29,8 @@
   "devDependencies": {
     "prebuildify": "^4.1.2",
     "standard": "^14.3.1",
-    "tape": "^4.11.0"
+    "tape": "^4.11.0",
+    "node-gyp": "^10.1.0"
   },
   "repository": {
     "type": "git",
