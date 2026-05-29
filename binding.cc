@@ -140,10 +140,25 @@ utp_napi_connection_drain (utp_napi_connection_t *self) {
 }
 
 inline static void
-utp_napi_parse_address (struct sockaddr *name, char *ip, int *port) {
-  struct sockaddr_in *name_in = (struct sockaddr_in *) name;
-  *port = ntohs(name_in->sin_port);
-  uv_ip4_name(name_in, ip, 17);
+utp_napi_parse_address (struct sockaddr *name, char *ip, int *port, int *family) {
+  if (name->sa_family == AF_INET6) {
+    struct sockaddr_in6 *name_in = (struct sockaddr_in6 *) name;
+    *port = ntohs(name_in->sin6_port);
+    uv_ip6_name(name_in, ip, 46);
+    *family = 6;
+  } else {
+    struct sockaddr_in *name_in = (struct sockaddr_in *) name;
+    *port = ntohs(name_in->sin_port);
+    uv_ip4_name(name_in, ip, 17);
+    *family = 4;
+  }
+}
+
+static inline socklen_t
+sockaddr_len (struct sockaddr *addr) {
+  return addr->sa_family == AF_INET6
+    ? sizeof(struct sockaddr_in6)
+    : sizeof(struct sockaddr_in);
 }
 
 static void
@@ -175,20 +190,23 @@ on_uv_read (uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf, const struct s
 
   if (nread > 0) {
     const unsigned char *base = (const unsigned char *) buf->base;
-    if (utp_process_udp(self->utp, base, nread, addr, sizeof(struct sockaddr))) return;
+    socklen_t slen = sockaddr_len((struct sockaddr *) addr);
+    if (utp_process_udp(self->utp, base, nread, addr, slen)) return;
   }
 
   int port;
-  char ip[17];
-  utp_napi_parse_address((struct sockaddr *) addr, ip, &port);
+  int family;
+  char ip[46];
+  utp_napi_parse_address((struct sockaddr *) addr, ip, &port, &family);
 
   UTP_NAPI_CALLBACK(self->on_message, {
     napi_value ret;
-    napi_value argv[3];
+    napi_value argv[4];
     napi_create_int32(env, nread, &(argv[0]));
     napi_create_uint32(env, port, &(argv[1]));
     napi_create_string_utf8(env, ip, NAPI_AUTO_LENGTH, &(argv[2]));
-    NAPI_MAKE_CALLBACK_AND_ALLOC(env, NULL, ctx, callback, 3, argv, ret, nread)
+    napi_create_uint32(env, family, &(argv[3]));
+    NAPI_MAKE_CALLBACK_AND_ALLOC(env, NULL, ctx, callback, 4, argv, ret, nread)
   })
 }
 
@@ -299,23 +317,25 @@ static uint64
 on_utp_accept (utp_callback_arguments *a) {
   utp_napi_t *self = (utp_napi_t *) utp_context_get_userdata(a->context);
 
-  struct sockaddr addr;
+  struct sockaddr_storage addr;
   socklen_t addr_len = sizeof(addr);
-  utp_getpeername(a->socket, &addr, &addr_len);
+  utp_getpeername(a->socket, (struct sockaddr *) &addr, &addr_len);
 
   int port;
-  char ip[17];
-  utp_napi_parse_address(&addr, ip, &port);
+  int family;
+  char ip[46];
+  utp_napi_parse_address((struct sockaddr *) &addr, ip, &port, &family);
 
   self->next_connection->socket = a->socket;
   utp_set_userdata(a->socket, self->next_connection);
 
   UTP_NAPI_CALLBACK(self->on_connection, {
-    napi_value argv[2];
+    napi_value argv[3];
     napi_create_uint32(env, port, &(argv[0]));
     napi_create_string_utf8(env, ip, NAPI_AUTO_LENGTH, &(argv[1]));
+    napi_create_uint32(env, family, &(argv[2]));
     napi_value next;
-    NAPI_MAKE_CALLBACK(env, NULL, ctx, callback, 2, argv, &next) // will never throw due to the event being NTed in js
+    NAPI_MAKE_CALLBACK(env, NULL, ctx, callback, 3, argv, &next) // will never throw due to the event being NTed in js
     utp_napi_connection_t *connection;
     size_t connection_size;
     napi_get_buffer_info(env, next, (void **) &connection, &connection_size);
@@ -479,15 +499,21 @@ NAPI_METHOD(utp_napi_bind) {
   NAPI_ARGV(3)
   NAPI_ARGV_BUFFER_CAST(utp_napi_t *, self, 0)
   NAPI_ARGV_UINT32(port, 1)
-  NAPI_ARGV_UTF8(ip, 17, 2)
+  NAPI_ARGV_UTF8(ip, 46, 2)
 
   uv_udp_t *handle = &(self->handle);
 
   int err;
-  struct sockaddr_in addr;
+  struct sockaddr_storage addr;
+  socklen_t addrlen;
 
-  err = uv_ip4_addr((char *) &ip, port, &addr);
-  if (err < 0) UTP_NAPI_THROW(err)
+  if (strchr((char *) &ip, ':')) {
+    err = uv_ip6_addr((char *) &ip, port, (struct sockaddr_in6 *) &addr);
+    if (err < 0) UTP_NAPI_THROW(err)
+  } else {
+    err = uv_ip4_addr((char *) &ip, port, (struct sockaddr_in *) &addr);
+    if (err < 0) UTP_NAPI_THROW(err)
+  }
 
   err = uv_udp_bind(handle, (const struct sockaddr*) &addr, 0);
   if (err < 0) UTP_NAPI_THROW(err)
@@ -510,14 +536,20 @@ NAPI_METHOD(utp_napi_local_port) {
   NAPI_ARGV_BUFFER_CAST(utp_napi_t *, self, 0)
 
   int err;
-  struct sockaddr name;
+  struct sockaddr_storage name;
   int name_len = sizeof(name);
 
-  err = uv_udp_getsockname(&(self->handle), &name, &name_len);
+  err = uv_udp_getsockname(&(self->handle), (struct sockaddr *) &name, &name_len);
   if (err < 0) UTP_NAPI_THROW(err)
 
-  struct sockaddr_in *name_in = (struct sockaddr_in *) &name;
-  int port = ntohs(name_in->sin_port);
+  int port;
+  if (name.ss_family == AF_INET6) {
+    struct sockaddr_in6 *name_in = (struct sockaddr_in6 *) &name;
+    port = ntohs(name_in->sin6_port);
+  } else {
+    struct sockaddr_in *name_in = (struct sockaddr_in *) &name;
+    port = ntohs(name_in->sin_port);
+  }
 
   NAPI_RETURN_UINT32(port)
 }
@@ -542,7 +574,7 @@ NAPI_METHOD(utp_napi_send) {
   NAPI_ARGV_UINT32(offset, 3)
   NAPI_ARGV_UINT32(len, 4)
   NAPI_ARGV_UINT32(port, 5)
-  NAPI_ARGV_UTF8(ip, 17, 6)
+  NAPI_ARGV_UTF8(ip, 46, 6)
 
   uv_udp_send_t *req = &(send_req->req);
 
@@ -550,10 +582,14 @@ NAPI_METHOD(utp_napi_send) {
   bufs.base = buf + offset;
   bufs.len = len;
 
-  struct sockaddr_in addr;
+  struct sockaddr_storage addr;
   int err;
 
-  err = uv_ip4_addr((char *) &ip, port, &addr);
+  if (strchr((char *) &ip, ':')) {
+    err = uv_ip6_addr((char *) &ip, port, (struct sockaddr_in6 *) &addr);
+  } else {
+    err = uv_ip4_addr((char *) &ip, port, (struct sockaddr_in *) &addr);
+  }
   if (err) UTP_NAPI_THROW(err)
 
   err = uv_udp_send(req, &(self->handle), &bufs, 1, (const struct sockaddr *) &addr, on_uv_send);
@@ -703,21 +739,28 @@ NAPI_METHOD(utp_napi_connect) {
   NAPI_ARGV_BUFFER_CAST(utp_napi_t *, self, 0)
   NAPI_ARGV_BUFFER_CAST(utp_napi_connection_t *, conn, 1)
   NAPI_ARGV_UINT32(port, 2)
-  NAPI_ARGV_UTF8(ip, 17, 3)
+  NAPI_ARGV_UTF8(ip, 46, 3)
 
   int err;
-  struct sockaddr_in addr;
+  struct sockaddr_storage addr;
+  socklen_t addrlen;
 
   // TODO: error handle
   conn->socket = utp_create_socket(self->utp);
 
   utp_set_userdata(conn->socket, conn);
 
-  err = uv_ip4_addr((char *) &ip, port, &addr);
+  if (strchr((char *) &ip, ':')) {
+    err = uv_ip6_addr((char *) &ip, port, (struct sockaddr_in6 *) &addr);
+    addrlen = sizeof(struct sockaddr_in6);
+  } else {
+    err = uv_ip4_addr((char *) &ip, port, (struct sockaddr_in *) &addr);
+    addrlen = sizeof(struct sockaddr_in);
+  }
   if (err) UTP_NAPI_THROW(err)
 
   // TODO: error handle
-  utp_connect(conn->socket, (struct sockaddr *) &addr, sizeof(struct sockaddr_in));
+  utp_connect(conn->socket, (struct sockaddr *) &addr, addrlen);
 
   return NULL;
 }
