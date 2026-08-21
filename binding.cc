@@ -14,18 +14,21 @@
   }
 
 #define NAPI_MAKE_CALLBACK_AND_ALLOC(env, nil, ctx, cb, n, argv, res, nread) \
-  if (napi_make_callback(env, nil, ctx, cb, n, argv, &res) == napi_pending_exception) { \
-    napi_value fatal_exception; \
-    napi_get_and_clear_last_exception(env, &fatal_exception); \
-    napi_fatal_exception(env, fatal_exception); \
-    { \
-      UTP_NAPI_CALLBACK(self->realloc, { \
-        NAPI_MAKE_CALLBACK(env, nil, ctx, callback, 0, NULL, &res); \
-        UTP_NAPI_BUFFER_ALLOC(self, res, 0) \
-      }) \
+  { \
+    napi_status make_status = napi_make_callback(env, nil, ctx, cb, n, argv, &res); \
+    if (make_status == napi_pending_exception) { \
+      napi_value fatal_exception; \
+      napi_get_and_clear_last_exception(env, &fatal_exception); \
+      napi_fatal_exception(env, fatal_exception); \
+      { \
+        UTP_NAPI_CALLBACK(self->realloc, { \
+          NAPI_MAKE_CALLBACK(env, nil, ctx, callback, 0, NULL, &res); \
+          UTP_NAPI_BUFFER_ALLOC(self, res, 0) \
+        }) \
+      } \
+    } else if (make_status == napi_ok) { \
+      UTP_NAPI_BUFFER_ALLOC(self, res, nread) \
     } \
-  } else { \
-    UTP_NAPI_BUFFER_ALLOC(self, res, nread) \
   }
 
 #define UTP_NAPI_CALLBACK(fn, src) \
@@ -40,9 +43,12 @@
   napi_close_handle_scope(env, scope);
 
 #define UTP_NAPI_BUFFER_ALLOC(self, ret, nread) \
-  char *buf; \
-  size_t buf_len; \
-  napi_get_buffer_info(env, ret, (void **) &buf, &buf_len); \
+  char *buf = NULL; \
+  size_t buf_len = 0; \
+  if (ret == NULL || napi_get_buffer_info(env, ret, (void **) &buf, &buf_len) != napi_ok) { \
+    buf = NULL; \
+    buf_len = 0; \
+  } \
   if (buf_len == 0) { \
     size_t size = nread <= 0 ? 0 : nread; \
     self->buf.base += size; \
@@ -178,12 +184,24 @@ on_uv_read (uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf, const struct s
     if (utp_process_udp(self->utp, base, nread, addr, sizeof(struct sockaddr))) return;
   }
 
+  // libuv documents `addr` as nullable, and it is null whenever the read
+  // itself failed — that case arrives as `nread < 0`. The two branches above
+  // return only for `nread == 0` and for a datagram libutp consumed, so a
+  // failed read fell through to the parse below, which dereferences the
+  // pointer without checking it. Segmentation fault in the UDP read callback,
+  // on whichever thread owns the socket.
+  //
+  // There is nothing to give JavaScript here: no sender, and no payload. The
+  // part of this callback that must run on every wake-up is
+  // `utp_check_timeouts`, and that has already run above.
+  if (nread < 0 || addr == NULL) return;
+
   int port;
   char ip[17];
   utp_napi_parse_address((struct sockaddr *) addr, ip, &port);
 
   UTP_NAPI_CALLBACK(self->on_message, {
-    napi_value ret;
+    napi_value ret = NULL;
     napi_value argv[3];
     napi_create_int32(env, nread, &(argv[0]));
     napi_create_uint32(env, port, &(argv[1]));
@@ -268,7 +286,7 @@ on_utp_state_change (utp_callback_arguments *a) {
     case UTP_STATE_EOF: {
       if (self->recv_packet_size) {
         UTP_NAPI_CALLBACK(self->on_read, {
-          napi_value ret;
+          napi_value ret = NULL;
           napi_value argv[1];
           napi_create_uint32(env, self->recv_packet_size, &(argv[0]));
           NAPI_MAKE_CALLBACK_AND_ALLOC(env, NULL, ctx, callback, 1, argv, ret, self->recv_packet_size)
@@ -299,6 +317,13 @@ static uint64
 on_utp_accept (utp_callback_arguments *a) {
   utp_napi_t *self = (utp_napi_t *) utp_context_get_userdata(a->context);
 
+  // No buffer to put this connection in means it cannot be accepted. That is
+  // not a hypothetical: the buffer for the NEXT connection comes back from
+  // JavaScript at the end of this function, and every way that can fail leaves
+  // nothing here. Dereferencing it anyway is a null write on the thread that
+  // owns the socket.
+  if (self->next_connection == NULL) return 0;
+
   struct sockaddr addr;
   socklen_t addr_len = sizeof(addr);
   utp_getpeername(a->socket, &addr, &addr_len);
@@ -314,12 +339,66 @@ on_utp_accept (utp_callback_arguments *a) {
     napi_value argv[2];
     napi_create_uint32(env, port, &(argv[0]));
     napi_create_string_utf8(env, ip, NAPI_AUTO_LENGTH, &(argv[1]));
-    napi_value next;
-    NAPI_MAKE_CALLBACK(env, NULL, ctx, callback, 2, argv, &next) // will never throw due to the event being NTed in js
-    utp_napi_connection_t *connection;
-    size_t connection_size;
-    napi_get_buffer_info(env, next, (void **) &connection, &connection_size);
-    self->next_connection = connection;
+    // Initialised, and the call's own answer is read.
+    //
+    // `NAPI_MAKE_CALLBACK` examines exactly one failure — `napi_pending_exception`
+    // — and even for that one it reports the exception and CARRIES ON. Every
+    // other status, `napi_invalid_arg` among them, is discarded, and in none of
+    // these cases does napi write anything to `res`. The next line then handed
+    // that value to `napi_get_buffer_info`, which asks V8 what it is; on an
+    // uninitialised handle that is a dereference of whatever the stack held.
+    //
+    // Field evidence, four core dumps on a Raspberry-class host, all on the
+    // thread owning the uTP socket and all with the same top frames:
+    //
+    //   #0 v8::Value::IsArrayBufferView() const
+    //   #1 napi_get_buffer_info ()
+    //   #2 on_utp_accept(utp_callback_arguments*)   utp_native.node
+    //   #3 utp_call_on_accept(...)
+    //   #4 utp_process_udp ()
+    //   #5 on_uv_read(uv_udp_s*, ...)
+    //
+    // They differ only below that. Two sat over `SpinEventLoopInternal` — the
+    // ordinary event loop — and two over `Environment::CleanupHandles` inside
+    // `FreeEnvironment`. That looked like two separate faults for two days. It
+    // is one, and node's own sources say why:
+    //
+    //   * `FreeEnvironment` sets `can_call_into_js(false)` BEFORE it calls
+    //     `RunCleanup` (`src/api/environment.cc`);
+    //   * `napi_make_callback` returns `napi_generic_failure` through
+    //     `CHECK_MAYBE_EMPTY` when `MakeCallback` yields an empty result, and
+    //     that early return writes nothing to `*result` (`src/node_api.cc`).
+    //
+    // So teardown is simply one of the ways this call fails without answering.
+    // Worth stating because the obvious remedy for the teardown pair — an
+    // `napi_add_env_cleanup_hook` that disarms the read — would not have helped
+    // either: `RunCleanup` drains the cleanup queue only AFTER `CleanupHandles`
+    // (`src/env.cc`), which is the frame those dumps died in.
+    //
+    // The comment this replaces read "will never throw due to the event being
+    // NTed in js". Whether it throws is beside the point — the value is unset
+    // either way.
+    napi_value next = NULL;
+    napi_status accept_status =
+      napi_make_callback(env, NULL, ctx, callback, 2, argv, &next);
+    if (accept_status == napi_pending_exception) {
+      napi_value fatal_exception;
+      napi_get_and_clear_last_exception(env, &fatal_exception);
+      napi_fatal_exception(env, fatal_exception);
+    }
+    utp_napi_connection_t *connection = NULL;
+    size_t connection_size = 0;
+    if (accept_status == napi_ok && next != NULL &&
+        napi_get_buffer_info(env, next, (void **) &connection, &connection_size) == napi_ok &&
+        connection_size >= sizeof(utp_napi_connection_t)) {
+      self->next_connection = connection;
+    } else {
+      // Nothing usable came back. The buffer that was here has just been given
+      // to the connection accepted above, so keeping it would hand the same
+      // memory to two connections. Cleared instead, and the guard at the top
+      // refuses further accepts until JavaScript supplies another one.
+      self->next_connection = NULL;
+    }
   })
 
   return 0;
@@ -350,7 +429,7 @@ on_utp_read (utp_callback_arguments *a) {
   }
 
   UTP_NAPI_CALLBACK(self->on_read, {
-    napi_value ret;
+    napi_value ret = NULL;
     napi_value argv[1];
     napi_create_uint32(env, self->recv_packet_size, &(argv[0]));
     NAPI_MAKE_CALLBACK_AND_ALLOC(env, NULL, ctx, callback, 1, argv, ret, self->recv_packet_size)
